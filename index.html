@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Footnote HTML Transformer</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.5;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 24px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 16px;
+        }
+        .instruction-box {
+            background-color: #ebf5ff;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+        }
+        .instruction-box p {
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        .instruction-box ul {
+            font-size: 14px;
+            margin-left: 20px;
+        }
+        .form-group {
+            margin-bottom: 16px;
+        }
+        .flex-row {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .flex-column {
+            flex: 1;
+        }
+        label {
+            display: block;
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+        input, textarea {
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 8px 12px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        input[type="number"] {
+            width: 80px;
+        }
+        textarea {
+            font-family: monospace;
+            font-size: 14px;
+            height: 160px;
+            resize: vertical;
+        }
+        button {
+            padding: 8px 16px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            margin-right: 8px;
+        }
+        button.primary {
+            background-color: #1a73e8;
+            color: white;
+        }
+        button.primary:hover {
+            background-color: #0d66da;
+        }
+        button.success {
+            background-color: #34a853;
+            color: white;
+        }
+        button.success:hover {
+            background-color: #2d9249;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            padding: 8px;
+            border-radius: 4px;
+            background-color: #e8f0fe;
+            color: #1967d2;
+            margin-bottom: 16px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Combined Footnote HTML Transformer</h1>
+        
+        <div class="instruction-box">
+            <p><strong>Instructions:</strong> Use {n} as a placeholder for the footnote number in your format patterns.</p>
+            <p><strong>This transformer processes both body and endnote formats in a single operation:</strong></p>
+            <ul>
+                <li>Body text footnotes will be transformed into hyperlinks pointing to endnotes</li>
+                <li>Endnote footnotes will be transformed into hyperlinks pointing back to references</li>
+            </ul>
+        </div>
+        
+        <div class="flex-row">
+            <div class="flex-column">
+                <label for="bodyFormat">Body Text Format:</label>
+                <input
+                    type="text"
+                    id="bodyFormat"
+                    value="<sup>[{n}]</sup>"
+                    placeholder="e.g. <sup>[{n}]</sup>"
+                >
+            </div>
+            <div class="flex-column">
+                <label for="endnoteFormat">Endnote Format:</label>
+                <input
+                    type="text"
+                    id="endnoteFormat"
+                    value="[{n}]"
+                    placeholder="e.g. [{n}]"
+                >
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="maxFootnotes">Maximum Footnote Number:</label>
+            <input
+                type="number"
+                id="maxFootnotes"
+                min="1"
+                value="10"
+            >
+        </div>
+
+        <div class="form-group">
+            <label for="inputText">Input HTML:</label>
+            <textarea
+                id="inputText"
+                placeholder="Paste your HTML here..."
+            ></textarea>
+        </div>
+
+        <button id="transformBtn" class="primary">Transform Both</button>
+
+        <div id="statusMessage" class="status"></div>
+
+        <div class="form-group">
+            <label for="outputText">Output HTML:</label>
+            <textarea
+                id="outputText"
+                placeholder="Transformed HTML will appear here..."
+                readonly
+            ></textarea>
+        </div>
+
+        <button id="copyBtn" class="success" disabled>Copy to Clipboard</button>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get DOM elements
+            const inputText = document.getElementById('inputText');
+            const outputText = document.getElementById('outputText');
+            const maxFootnotes = document.getElementById('maxFootnotes');
+            const bodyFormat = document.getElementById('bodyFormat');
+            const endnoteFormat = document.getElementById('endnoteFormat');
+            const statusMessage = document.getElementById('statusMessage');
+            const transformBtn = document.getElementById('transformBtn');
+            const copyBtn = document.getElementById('copyBtn');
+
+            // Simple validation function
+            function isValidFormat(format) {
+                return format.includes('{n}');
+            }
+
+            // Transform the text
+            transformBtn.addEventListener('click', function() {
+                // Validation checks
+                if (!inputText.value.trim()) {
+                    showStatus('Please enter some HTML to transform.');
+                    return;
+                }
+
+                if (!isValidFormat(bodyFormat.value)) {
+                    showStatus('Body format must include {n} placeholder.');
+                    return;
+                }
+
+                if (!isValidFormat(endnoteFormat.value)) {
+                    showStatus('Endnote format must include {n} placeholder.');
+                    return;
+                }
+
+                let transformed = inputText.value;
+                let bodyMatchCount = 0;
+                let endnoteMatchCount = 0;
+                
+                // Solution using temporary markers to avoid double-processing
+                // Step 1: Create an array to store all replacements (both body and endnote)
+                const replacements = [];
+                
+                // Step 2: First scan the document and identify all occurrences without modifying
+                for (let footnoteNum = 1; footnoteNum <= parseInt(maxFootnotes.value); footnoteNum++) {
+                    // For body references
+                    const bodySearchPattern = bodyFormat.value.replace('{n}', footnoteNum);
+                    // For endnote references
+                    const endnoteSearchPattern = endnoteFormat.value.replace('{n}', footnoteNum);
+                    
+                    // Create temporary unique markers
+                    const bodyTempMarker = `__BODY_FOOTNOTE_${footnoteNum}__`;
+                    const endnoteTempMarker = `__ENDNOTE_FOOTNOTE_${footnoteNum}__`;
+                    
+                    // Create the actual HTML replacements
+                    const bodyReplacement = `<a href="#_ftn${footnoteNum}" name="_ftnref${footnoteNum}">${bodySearchPattern}</a>`;
+                    const endnoteReplacement = `<a href="#_ftnref${footnoteNum}" name="_ftn${footnoteNum}">${endnoteSearchPattern}</a>`;
+                    
+                    // Store information about each pattern to replace
+                    if (transformed.includes(bodySearchPattern)) {
+                        replacements.push({
+                            searchPattern: bodySearchPattern,
+                            tempMarker: bodyTempMarker,
+                            finalReplacement: bodyReplacement,
+                            type: 'body',
+                            number: footnoteNum
+                        });
+                    }
+                    
+                    if (transformed.includes(endnoteSearchPattern)) {
+                        replacements.push({
+                            searchPattern: endnoteSearchPattern,
+                            tempMarker: endnoteTempMarker,
+                            finalReplacement: endnoteReplacement,
+                            type: 'endnote',
+                            number: footnoteNum
+                        });
+                    }
+                }
+                
+                // Step 3: First pass - replace all patterns with unique temporary markers
+                for (const item of replacements) {
+                    const parts = transformed.split(item.searchPattern);
+                    transformed = parts.join(item.tempMarker);
+                    
+                    // Count occurrences
+                    if (item.type === 'body') {
+                        bodyMatchCount += parts.length - 1;
+                    } else {
+                        endnoteMatchCount += parts.length - 1;
+                    }
+                }
+                
+                // Step 4: Second pass - replace all temporary markers with final HTML
+                for (const item of replacements) {
+                    transformed = transformed.split(item.tempMarker).join(item.finalReplacement);
+                }
+                
+                outputText.value = transformed;
+                
+                const totalMatches = bodyMatchCount + endnoteMatchCount;
+                if (totalMatches > 0) {
+                    showStatus(`Successfully transformed ${totalMatches} footnote${totalMatches !== 1 ? 's' : ''} (${bodyMatchCount} in body text, ${endnoteMatchCount} in endnotes).`);
+                    copyBtn.disabled = false;
+                } else {
+                    showStatus('No matching footnotes found. Check your input and format patterns.');
+                    copyBtn.disabled = true;
+                }
+            });
+
+            // Copy output to clipboard
+            copyBtn.addEventListener('click', function() {
+                outputText.select();
+                document.execCommand('copy');
+                
+                showStatus('Copied to clipboard!');
+                setTimeout(function() {
+                    hideStatus();
+                }, 2000);
+            });
+
+            // Helper function to show status message
+            function showStatus(message) {
+                statusMessage.textContent = message;
+                statusMessage.style.display = 'block';
+            }
+
+            // Helper function to hide status message
+            function hideStatus() {
+                statusMessage.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
