@@ -579,7 +579,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Image
         if (img) {
-            const src = img.getAttribute('src') || '';
+            let src = img.getAttribute('src') || '';
+            src = src.replace(/=w\d+(-h\d+)?$/, '=s16000');
+            src = src.replace(/=s\d+$/, '=s16000');
             const alt = img.getAttribute('alt') || '';
             
             // Check if small/aligned image (author photo)
@@ -765,6 +767,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 i++; continue;
             }
 
+            // ---- TABLE IMAGE (tr-caption-container) ----
+            if (tag === 'table' && ((node.getAttribute('class') || '').includes('tr-caption-container'))) {
+                const img = node.querySelector('img');
+                const captionTd = node.querySelector('td.tr-caption');
+                if (img) {
+                    let src = img.getAttribute('src') || '';
+                    // Strip blogger resize suffix, force original size
+                    src = src.replace(/=w\d+(-h\d+)?$/, '=s16000');
+                    src = src.replace(/=s\d+$/, '=s16000');
+                    const caption = captionTd ? cleanInnerHtml(captionTd) : '';
+                    stats.images++;
+                    blocks.push(wpImage(src, '', caption, 'center', '', ''));
+                }
+                i++; continue;
+            }
             // ---- SEPARATOR DIV (image/video container) ----
             if (tag === 'div' && isSeparatorDiv(node)) {
                 const block = processSeparatorDiv(node);
