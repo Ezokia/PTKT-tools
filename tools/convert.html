@@ -786,9 +786,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     let align = 'center';
                     const tableAlign = node.getAttribute('align') || '';
                     const tableStyle = node.getAttribute('style') || '';
-                    if (tableAlign === 'left' || tableStyle.includes('float: left') || tableStyle.includes('float:left')) {
+                    if (tableAlign === 'left' || tableStyle.includes('float: left') || tableStyle.includes('float:left') || tableStyle.includes('text-align: left')) {
                         align = 'left';
-                    } else if (tableAlign === 'right' || tableStyle.includes('float: right') || tableStyle.includes('float:right')) {
+                    } else if (tableAlign === 'right' || tableStyle.includes('float: right') || tableStyle.includes('float:right') ||  tableStyle.includes('text-align: right')) {
                         align = 'right';
                     }
                     blocks.push(wpImage(src, '', caption, align, '', ''));
