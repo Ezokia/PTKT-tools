@@ -783,7 +783,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     src = src.replace(/=s\d+$/, '=s16000');
                     const caption = captionTd ? cleanInnerHtml(captionTd) : '';
                     stats.images++;
-                    blocks.push(wpImage(src, '', caption, 'center', '', ''));
+                    let align = 'center';
+                    const tableAlign = node.getAttribute('align') || '';
+                    const tableStyle = node.getAttribute('style') || '';
+                    if (tableAlign === 'left' || tableStyle.includes('float: left') || tableStyle.includes('float:left')) {
+                        align = 'left';
+                    } else if (tableAlign === 'right' || tableStyle.includes('float: right') || tableStyle.includes('float:right')) {
+                        align = 'right';
+                    }
+                    blocks.push(wpImage(src, '', caption, align, '', ''));
                 }
                 i++; continue;
             }
