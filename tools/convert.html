@@ -28,18 +28,23 @@
         }
         .instruction-box {
             background-color: #ebf5ff;
-            padding: 12px;
             border-radius: 6px;
             margin-bottom: 16px;
         }
-        .instruction-box p {
+        .instruction-box summary {
+            padding: 12px;
+            cursor: pointer;
             font-size: 14px;
-            margin-bottom: 8px;
+            font-weight: 500;
         }
+        .instruction-box p,
         .instruction-box ul {
             font-size: 14px;
+            padding: 0 12px 12px;
+            margin: 0;
+        }
+        .instruction-box ul {
             margin-left: 20px;
-            margin-bottom: 0;
         }
         .form-group {
             margin-bottom: 16px;
@@ -106,8 +111,8 @@
 <div class="container">
     <h1>Blogger → WordPress Block Converter</h1>
 
-    <div class="instruction-box">
-        <p><strong>Chức năng:</strong> Paste HTML từ Blogger, nhận lại HTML theo format WordPress Block Editor.</p>
+    <details class="instruction-box">
+        <summary>Xem chi tiết chức năng converter</summary>
         <ul>
             <li>Ảnh → WordPress image block (auto canh giữa)</li>
             <li>Video YouTube → WordPress embed block</li>
@@ -119,7 +124,7 @@
             <li><code>&lt;!--more--&gt;</code> → WordPress more block</li>
             <li>Footnote/Endnote: giữ nguyên ID links</li>
         </ul>
-    </div>
+    </details>
 
     <div class="form-group">
         <label for="inputText">Input HTML (Blogger):</label>
