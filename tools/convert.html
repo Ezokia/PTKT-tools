@@ -195,7 +195,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Step 3: Remove <u> wrapping single <a> tags
         // Use [^<]* inside <a> to prevent matching across multiple tags
         // Then allow <sup>, <sub>, <span>, <strong>, <em> inside but not other <a> or </a>
-        html = html.replace(/<u>\s*(<a\s[^>]*>(?:[^<]|<(?!\/a>|a\s))*<\/a>)\s*<\/u>/gi, '$1');
+        // html = html.replace(/<u>\s*(<a\s[^>]*>(?:[^<]|<(?!\/a>|a\s))*<\/a>)\s*<\/u>/gi, '$1');
         
         // Step 4: Clean up multiple consecutive spaces inside links
         html = html.replace(/(<a\s[^>]*>)((?:[^<]|<(?!\/a>))*?)(<\/a>)/gi, function(match, open, content, close) {
