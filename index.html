@@ -1,315 +1,332 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="vi">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Footnote HTML Transformer</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            line-height: 1.5;
-            color: #333;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background-color: white;
-            padding: 24px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        }
-        h1 {
-            font-size: 24px;
-            font-weight: bold;
-            margin-bottom: 16px;
-        }
-        .instruction-box {
-            background-color: #ebf5ff;
-            padding: 12px;
-            border-radius: 6px;
-            margin-bottom: 16px;
-        }
-        .instruction-box p {
-            font-size: 14px;
-            margin-bottom: 8px;
-        }
-        .instruction-box ul {
-            font-size: 14px;
-            margin-left: 20px;
-        }
-        .form-group {
-            margin-bottom: 16px;
-        }
-        .flex-row {
-            display: flex;
-            gap: 16px;
-            margin-bottom: 16px;
-        }
-        .flex-column {
-            flex: 1;
-        }
-        label {
-            display: block;
-            margin-bottom: 4px;
-            font-weight: 500;
-        }
-        input, textarea {
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            padding: 8px 12px;
-            width: 100%;
-            box-sizing: border-box;
-        }
-        input[type="number"] {
-            width: 80px;
-        }
-        textarea {
-            font-family: monospace;
-            font-size: 14px;
-            height: 160px;
-            resize: vertical;
-        }
-        button {
-            padding: 8px 16px;
-            border-radius: 4px;
-            border: none;
-            cursor: pointer;
-            font-weight: 500;
-            margin-right: 8px;
-        }
-        button.primary {
-            background-color: #1a73e8;
-            color: white;
-        }
-        button.primary:hover {
-            background-color: #0d66da;
-        }
-        button.success {
-            background-color: #34a853;
-            color: white;
-        }
-        button.success:hover {
-            background-color: #2d9249;
-        }
-        button:disabled {
-            background-color: #ccc;
-            cursor: not-allowed;
-        }
-        .status {
-            padding: 8px;
-            border-radius: 4px;
-            background-color: #e8f0fe;
-            color: #1967d2;
-            margin-bottom: 16px;
-            display: none;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PTKT Tools</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --sidebar-w: 220px;
+      --bg: #f7f6f3;
+      --sidebar-bg: #1a1a1a;
+      --sidebar-text: #a8a8a8;
+      --sidebar-active: #ffffff;
+      --sidebar-active-bg: #2e2e2e;
+      --sidebar-hover: #242424;
+      --accent: #c00000;
+      --border: #e2e0db;
+      --content-bg: #ffffff;
+      --text: #1a1a1a;
+      --text-muted: #888;
+      --font-ui: 'IBM Plex Sans', sans-serif;
+      --font-mono: 'IBM Plex Mono', monospace;
+    }
+
+    html, body {
+      height: 100%;
+    }
+
+    body {
+      display: flex;
+      font-family: var(--font-ui);
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      width: var(--sidebar-w);
+      min-height: 100vh;
+      background: var(--sidebar-bg);
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+    }
+
+    .sidebar-header {
+      padding: 28px 20px 20px;
+      border-bottom: 1px solid #2e2e2e;
+    }
+
+    .sidebar-brand {
+      font-family: var(--font-mono);
+      font-size: 15px;
+      font-weight: 500;
+      color: #ffffff;
+      letter-spacing: 0.02em;
+    }
+
+    .sidebar-sub {
+      font-size: 11px;
+      color: var(--sidebar-text);
+      margin-top: 4px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .sidebar-section {
+      padding: 20px 0 8px;
+    }
+
+    .sidebar-section-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: #555;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 0 20px 8px;
+    }
+
+    .nav-item {
+      display: block;
+      padding: 10px 20px;
+      font-size: 13.5px;
+      color: var(--sidebar-text);
+      text-decoration: none;
+      cursor: pointer;
+      border-left: 2px solid transparent;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+      user-select: none;
+    }
+
+    .nav-item:hover {
+      background: var(--sidebar-hover);
+      color: #e0e0e0;
+    }
+
+    .nav-item.active {
+      color: var(--sidebar-active);
+      background: var(--sidebar-active-bg);
+      border-left-color: var(--accent);
+    }
+
+    .sidebar-footer {
+      margin-top: auto;
+      padding: 16px 20px;
+      border-top: 1px solid #2e2e2e;
+      font-size: 11px;
+      color: #444;
+      font-family: var(--font-mono);
+    }
+
+    /* ── CONTENT ── */
+    .main {
+      margin-left: var(--sidebar-w);
+      flex: 1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .topbar {
+      background: var(--content-bg);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .topbar-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .topbar-badge {
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      padding: 2px 8px;
+      border-radius: 3px;
+    }
+
+    .content-frame {
+      flex: 1;
+      position: relative;
+    }
+
+    .tool-panel {
+      display: none;
+      width: 100%;
+      height: 100%;
+    }
+
+    .tool-panel.active {
+      display: block;
+    }
+
+    .tool-panel iframe {
+      width: 100%;
+      height: calc(100vh - 57px);
+      border: none;
+      display: block;
+    }
+
+    /* ── PLACEHOLDER ── */
+    .placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: calc(100vh - 57px);
+      color: var(--text-muted);
+      gap: 10px;
+    }
+
+    .placeholder-title {
+      font-size: 15px;
+      font-weight: 500;
+      color: #bbb;
+    }
+
+    .placeholder-sub {
+      font-size: 13px;
+      color: #ccc;
+      font-family: var(--font-mono);
+    }
+
+    .placeholder-tag {
+      display: inline-block;
+      margin-top: 6px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--accent);
+      border: 1px solid #e8c8c8;
+      background: #fff5f5;
+      padding: 3px 10px;
+      border-radius: 3px;
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Combined Footnote HTML Transformer</h1>
-        
-        <div class="instruction-box">
-            <p><strong>Instructions:</strong> Use {n} as a placeholder for the footnote number in your format patterns.</p>
-            <p><strong>This transformer processes both body and endnote formats in a single operation:</strong></p>
-            <ul>
-                <li>Body text footnotes will be transformed into hyperlinks pointing to endnotes</li>
-                <li>Endnote footnotes will be transformed into hyperlinks pointing back to references</li>
-            </ul>
-        <p><strong><a href="https://html-cleaner.com/">Text to HTML tool</a></strong> for converting text to HTML and editing</p>
 
-        </div>
-        
-        <div class="flex-row">
-            <div class="flex-column">
-                <label for="bodyFormat">Body Text Format:</label>
-                <input
-                    type="text"
-                    id="bodyFormat"
-                    value="<sup>[{n}]</sup>"
-                    placeholder="e.g. <sup>[{n}]</sup>"
-                >
-            </div>
-            <div class="flex-column">
-                <label for="endnoteFormat">Endnote Format:</label>
-                <input
-                    type="text"
-                    id="endnoteFormat"
-                    value="[{n}]"
-                    placeholder="e.g. [{n}]"
-                >
-            </div>
-        </div>
-
-        <div class="form-group">
-            <label for="maxFootnotes">Maximum Footnote Number:</label>
-            <input
-                type="number"
-                id="maxFootnotes"
-                min="1"
-                value="10"
-            >
-        </div>
-
-        <div class="form-group">
-            <label for="inputText">Input HTML:</label>
-            <textarea
-                id="inputText"
-                placeholder="Paste your HTML here..."
-            ></textarea>
-        </div>
-
-        <button id="transformBtn" class="primary">Run</button>
-
-        <div id="statusMessage" class="status"></div>
-
-        <div class="form-group">
-            <label for="outputText">Output HTML:</label>
-            <textarea
-                id="outputText"
-                placeholder="Transformed HTML will appear here..."
-                readonly
-            ></textarea>
-        </div>
-
-        <button id="copyBtn" class="success" disabled>Copy to Clipboard</button>
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-brand">PTKT Tools</div>
+      <div class="sidebar-sub">Bộ công cụ nội bộ</div>
     </div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Get DOM elements
-            const inputText = document.getElementById('inputText');
-            const outputText = document.getElementById('outputText');
-            const maxFootnotes = document.getElementById('maxFootnotes');
-            const bodyFormat = document.getElementById('bodyFormat');
-            const endnoteFormat = document.getElementById('endnoteFormat');
-            const statusMessage = document.getElementById('statusMessage');
-            const transformBtn = document.getElementById('transformBtn');
-            const copyBtn = document.getElementById('copyBtn');
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Công cụ</div>
 
-            // Simple validation function
-            function isValidFormat(format) {
-                return format.includes('{n}');
-            }
+      <a class="nav-item active" data-tool="footnote" data-label="Chuyển đổi Footnote">
+        Chuyển đổi Footnote
+      </a>
+      <a class="nav-item" data-tool="beautify" data-label="Beautify HTML">
+        Beautify HTML
+      </a>
+      <a class="nav-item" data-tool="convert" data-label="Convert HTML">
+        Convert HTML
+      </a>
+      <a class="nav-item" data-tool="hyperlink" data-label="Auto Hyperlink">
+        Auto Hyperlink
+      </a>
+    </div>
 
-            // Transform the text
-            transformBtn.addEventListener('click', function() {
-                // Validation checks
-                if (!inputText.value.trim()) {
-                    showStatus('Please enter some HTML to transform.');
-                    return;
-                }
+    <div class="sidebar-footer">
+      v1.0 — PTKT
+    </div>
+  </aside>
 
-                if (!isValidFormat(bodyFormat.value)) {
-                    showStatus('Body format must include {n} placeholder.');
-                    return;
-                }
+  <!-- MAIN -->
+  <main class="main">
+    <div class="topbar">
+      <span class="topbar-title" id="topbar-title">Chuyển đổi Footnote</span>
+      <span class="topbar-badge" id="topbar-key">footnote</span>
+    </div>
 
-                if (!isValidFormat(endnoteFormat.value)) {
-                    showStatus('Endnote format must include {n} placeholder.');
-                    return;
-                }
+    <div class="content-frame">
 
-                let transformed = inputText.value;
-                let bodyMatchCount = 0;
-                let endnoteMatchCount = 0;
-                
-                // Solution using temporary markers to avoid double-processing
-                // Step 1: Create an array to store all replacements (both body and endnote)
-                const replacements = [];
-                
-                // Step 2: First scan the document and identify all occurrences without modifying
-                for (let footnoteNum = 1; footnoteNum <= parseInt(maxFootnotes.value); footnoteNum++) {
-                    // For body references
-                    const bodySearchPattern = bodyFormat.value.replace('{n}', footnoteNum);
-                    // For endnote references
-                    const endnoteSearchPattern = endnoteFormat.value.replace('{n}', footnoteNum);
-                    
-                    // Create temporary unique markers
-                    const bodyTempMarker = `__BODY_FOOTNOTE_${footnoteNum}__`;
-                    const endnoteTempMarker = `__ENDNOTE_FOOTNOTE_${footnoteNum}__`;
-                    
-                    // Create the actual HTML replacements
-                    const bodyReplacement = `<a href="#_ftn${footnoteNum}" name="_ftnref${footnoteNum}">${bodySearchPattern}</a>`;
-                    const endnoteReplacement = `<a href="#_ftnref${footnoteNum}" name="_ftn${footnoteNum}">${endnoteSearchPattern}</a>`;
-                    
-                    // Store information about each pattern to replace
-                    if (transformed.includes(bodySearchPattern)) {
-                        replacements.push({
-                            searchPattern: bodySearchPattern,
-                            tempMarker: bodyTempMarker,
-                            finalReplacement: bodyReplacement,
-                            type: 'body',
-                            number: footnoteNum
-                        });
-                    }
-                    
-                    if (transformed.includes(endnoteSearchPattern)) {
-                        replacements.push({
-                            searchPattern: endnoteSearchPattern,
-                            tempMarker: endnoteTempMarker,
-                            finalReplacement: endnoteReplacement,
-                            type: 'endnote',
-                            number: footnoteNum
-                        });
-                    }
-                }
-                
-                // Step 3: First pass - replace all patterns with unique temporary markers
-                for (const item of replacements) {
-                    const parts = transformed.split(item.searchPattern);
-                    transformed = parts.join(item.tempMarker);
-                    
-                    // Count occurrences
-                    if (item.type === 'body') {
-                        bodyMatchCount += parts.length - 1;
-                    } else {
-                        endnoteMatchCount += parts.length - 1;
-                    }
-                }
-                
-                // Step 4: Second pass - replace all temporary markers with final HTML
-                for (const item of replacements) {
-                    transformed = transformed.split(item.tempMarker).join(item.finalReplacement);
-                }
-                
-                outputText.value = transformed;
-                
-                const totalMatches = bodyMatchCount + endnoteMatchCount;
-                if (totalMatches > 0) {
-                    showStatus(`Successfully transformed ${totalMatches} footnote${totalMatches !== 1 ? 's' : ''} (${bodyMatchCount} in body text, ${endnoteMatchCount} in endnotes).`);
-                    copyBtn.disabled = false;
-                } else {
-                    showStatus('No matching footnotes found. Check your input and format patterns.');
-                    copyBtn.disabled = true;
-                }
-            });
+      <!-- Tool: Footnote -->
+      <div class="tool-panel active" id="panel-footnote">
+        <iframe src="tools/footnote.html" title="Chuyển đổi Footnote"></iframe>
+      </div>
 
-            // Copy output to clipboard
-            copyBtn.addEventListener('click', function() {
-                outputText.select();
-                document.execCommand('copy');
-                
-                showStatus('Copied to clipboard!');
-                setTimeout(function() {
-                    hideStatus();
-                }, 2000);
-            });
+      <!-- Tool: Beautify -->
+      <div class="tool-panel" id="panel-beautify">
+        <div class="placeholder">
+          <div class="placeholder-title">Beautify HTML</div>
+          <div class="placeholder-sub">tools/beautify.html</div>
+          <span class="placeholder-tag">Chưa có file — upload sau</span>
+        </div>
+      </div>
 
-            // Helper function to show status message
-            function showStatus(message) {
-                statusMessage.textContent = message;
-                statusMessage.style.display = 'block';
-            }
+      <!-- Tool: Convert HTML -->
+      <div class="tool-panel" id="panel-convert">
+        <div class="placeholder">
+          <div class="placeholder-title">Convert HTML</div>
+          <div class="placeholder-sub">tools/convert.html</div>
+          <span class="placeholder-tag">Chưa có file — upload sau</span>
+        </div>
+      </div>
 
-            // Helper function to hide status message
-            function hideStatus() {
-                statusMessage.style.display = 'none';
-            }
-        });
-    </script>
+      <!-- Tool: Auto Hyperlink -->
+      <div class="tool-panel" id="panel-hyperlink">
+        <div class="placeholder">
+          <div class="placeholder-title">Auto Hyperlink</div>
+          <div class="placeholder-sub">tools/hyperlink.html</div>
+          <span class="placeholder-tag">Chưa có file — upload sau</span>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <script>
+    const navItems = document.querySelectorAll('.nav-item');
+    const panels = document.querySelectorAll('.tool-panel');
+    const topbarTitle = document.getElementById('topbar-title');
+    const topbarKey = document.getElementById('topbar-key');
+
+    // Map tool key → src file (chỉ load khi click, tránh load hết)
+    const toolSrc = {
+      footnote: 'tools/footnote.html',
+      beautify: 'tools/beautify.html',
+      convert:  'tools/convert.html',
+      hyperlink:'tools/hyperlink.html',
+    };
+
+    navItems.forEach(item => {
+      item.addEventListener('click', () => {
+        const tool = item.dataset.tool;
+        const label = item.dataset.label;
+
+        // Update sidebar active
+        navItems.forEach(n => n.classList.remove('active'));
+        item.classList.add('active');
+
+        // Update topbar
+        topbarTitle.textContent = label;
+        topbarKey.textContent = tool;
+
+        // Switch panel
+        panels.forEach(p => p.classList.remove('active'));
+        const panel = document.getElementById('panel-' + tool);
+        panel.classList.add('active');
+
+        // Lazy load iframe nếu chưa có src
+        const iframe = panel.querySelector('iframe');
+        if (iframe && !iframe.src.includes(toolSrc[tool])) {
+          iframe.src = toolSrc[tool];
+        }
+      });
+    });
+  </script>
+
 </body>
 </html>
