@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blogger → WordPress Block Converter</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.5;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 24px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 16px;
+        }
+        .instruction-box {
+            background-color: #ebf5ff;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+        }
+        .instruction-box p {
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        .instruction-box ul {
+            font-size: 14px;
+            margin-left: 20px;
+            margin-bottom: 0;
+        }
+        .form-group {
+            margin-bottom: 16px;
+        }
+        label {
+            display: block;
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+        textarea {
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 8px 12px;
+            width: 100%;
+            box-sizing: border-box;
+            font-family: monospace;
+            font-size: 13px;
+            resize: vertical;
+        }
+        #inputText { height: 200px; }
+        #outputText { height: 300px; }
+        button {
+            padding: 8px 16px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            margin-right: 8px;
+        }
+        button.primary {
+            background-color: #1a73e8;
+            color: white;
+        }
+        button.primary:hover {
+            background-color: #0d66da;
+        }
+        button.success {
+            background-color: #34a853;
+            color: white;
+        }
+        button.success:hover {
+            background-color: #2d9249;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            padding: 8px;
+            border-radius: 4px;
+            background-color: #e8f0fe;
+            color: #1967d2;
+            margin-bottom: 16px;
+            display: none;
+        }
+        .stats {
+            font-size: 13px;
+            color: #666;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Blogger → WordPress Block Converter</h1>
+
+    <div class="instruction-box">
+        <p><strong>Chức năng:</strong> Paste HTML từ Blogger, nhận lại HTML theo format WordPress Block Editor.</p>
+        <ul>
+            <li>Ảnh → WordPress image block (auto canh giữa)</li>
+            <li>Video YouTube → WordPress embed block</li>
+            <li>Strip inline styles (font-family, font-size, color, MSO...)</li>
+            <li>Giữ padding/margin-left (thụt lùi đoạn)</li>
+            <li>Clean link patterns (underline-word → clean link)</li>
+            <li>H1 → H2 (font-size 36px), bold paragraphs with font-size → H2</li>
+            <li>Toggle (checkbox hack) → WordPress details block</li>
+            <li><code>&lt;!--more--&gt;</code> → WordPress more block</li>
+            <li>Footnote/Endnote: giữ nguyên ID links</li>
+        </ul>
+    </div>
+
+    <div class="form-group">
+        <label for="inputText">Input HTML (Blogger):</label>
+        <textarea id="inputText" placeholder="Paste HTML từ Blogger vào đây..."></textarea>
+    </div>
+
+    <button id="transformBtn" class="primary">Convert to WordPress</button>
+
+    <div id="statusMessage" class="status"></div>
+
+    <div class="form-group">
+        <label for="outputText">Output HTML (WordPress Block):</label>
+        <textarea id="outputText" placeholder="WordPress Block HTML sẽ xuất hiện ở đây..." readonly></textarea>
+    </div>
+
+    <button id="copyBtn" class="success" disabled>Copy to Clipboard</button>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const inputText = document.getElementById('inputText');
+    const outputText = document.getElementById('outputText');
+    const statusMessage = document.getElementById('statusMessage');
+    const transformBtn = document.getElementById('transformBtn');
+    const copyBtn = document.getElementById('copyBtn');
+
+    let stats = { headings: 0, paragraphs: 0, images: 0, videos: 0, toggles: 0, more: 0, separators: 0, footnotes: 0 };
+
+    function showStatus(msg) {
+        statusMessage.textContent = msg;
+        statusMessage.style.display = 'block';
+    }
+
+    // ========================
+    // STRING-LEVEL PRE-CLEAN
+    // ========================
+    function preClean(html) {
+        // Remove MSO conditional comments: <!--[if ...]-->...<!--[endif]-->
+        html = html.replace(/<!--\[if[^\]]*\]>[\s\S]*?<!\[endif\]-->/gi, '');
+        // Remove standalone <!--[endif]--> leftovers
+        html = html.replace(/<!--\[endif\]-->/gi, '');
+        // Remove orphaned <!--[if ...]-->
+        html = html.replace(/<!--\[if[^\]]*\]-->/gi, '');
+        // Remove <o:p></o:p>
+        html = html.replace(/<o:p><\/o:p>/gi, '');
+        html = html.replace(/<o:p>[\s\S]*?<\/o:p>/gi, '');
+        // Remove v:shapes attributes
+        html = html.replace(/\s*v:shapes="[^"]*"/gi, '');
+        // Remove mso-* styles from style attributes
+        html = html.replace(/mso-[^;:"]+:[^;"]+(;|(?="))/gi, '');
+        // Remove face attributes on spans
+        html = html.replace(/\s*face="[^"]*"/gi, '');
+        // Remove class="MsoNormal", class="MsoEndnoteText", class="MsoEndnoteReference"
+        html = html.replace(/\s*class="Mso[^"]*"/gi, '');
+        // Remove empty style attributes left after cleaning
+        html = html.replace(/\s*style="\s*"/gi, '');
+        return html;
+    }
+
+    // ========================
+    // CLEAN BLOGGER LINK PATTERNS
+    // ========================
+    function cleanLinks(html) {
+        // Step 1: Remove text-decoration spans (underline-word pattern)
+        // These spans break underline on spaces between words in links
+        html = html.replace(/<span\s+style="[^"]*text-decoration[^"]*none[^"]*">\s*<\/span>/gi, ' ');
+        html = html.replace(/<span\s+style="[^"]*text-underline[^"]*none[^"]*">\s*<\/span>/gi, ' ');
+        html = html.replace(/<span[^>]*style="[^"]*text-decoration[^"]*"[^>]*>(\s+)<\/span>/gi, '$1');
+        
+        // Step 2: Normalize gap between </a> and </u> (collapse to </a></u> but keep a trailing space)
+        html = html.replace(/<\/a>(\s|&nbsp;|&#160;)+<\/u>/gi, '</a></u> ');
+        
+        // Step 3: Remove <u> wrapping single <a> tags
+        // Use [^<]* inside <a> to prevent matching across multiple tags
+        // Then allow <sup>, <sub>, <span>, <strong>, <em> inside but not other <a> or </a>
+        html = html.replace(/<u>\s*(<a\s[^>]*>(?:[^<]|<(?!\/a>|a\s))*<\/a>)\s*<\/u>/gi, '$1');
+        
+        // Step 4: Clean up multiple consecutive spaces inside links
+        html = html.replace(/(<a\s[^>]*>)((?:[^<]|<(?!\/a>))*?)(<\/a>)/gi, function(match, open, content, close) {
+            content = content.replace(/\s{2,}/g, ' ');
+            return open + content + close;
+        });
+        
+        return html;
+    }
+
+    // ========================
+    // STRIP BLOGGER SPANS (keep content)
+    // ========================
+    function stripDecorativeSpans(html) {
+        // Remove <span style="font-family: verdana;"> ... </span> (keep content)
+        // Do this iteratively since they can be nested
+        let prev = '';
+        let max = 20;
+        while (html !== prev && max-- > 0) {
+            prev = html;
+            // Spans with only font-family style
+            html = html.replace(/<span\s+style="[^"]*font-family:[^"]*"[^>]*>([\s\S]*?)<\/span>/gi, '$1');
+        }
+        
+        // Remove remaining empty spans
+        html = html.replace(/<span>\s*<\/span>/gi, '');
+        html = html.replace(/<span\s+style="\s*">\s*<\/span>/gi, '');
+        // Remove spans that only have color style
+        prev = '';
+        max = 10;
+        while (html !== prev && max-- > 0) {
+            prev = html;
+            html = html.replace(/<span\s+style="\s*color:[^"]*"[^>]*>([\s\S]*?)<\/span>/gi, '$1');
+        }
+        
+        return html;
+    }
+
+    // ========================
+    // CONVERT <b> → <strong>, <i> → <em>
+    // ========================
+    function convertInlineTags(html) {
+        html = html.replace(/<b\b([^>]*)>/gi, '<strong$1>');
+        html = html.replace(/<\/b>/gi, '</strong>');
+        html = html.replace(/<i\b([^>]*)>/gi, '<em$1>');
+        html = html.replace(/<\/i>/gi, '</em>');
+        // Merge adjacent <strong> tags: </strong><strong> → (nothing)
+        html = html.replace(/<\/strong>\s*<strong[^>]*>/gi, '');
+        // Merge adjacent <em> tags
+        html = html.replace(/<\/em>\s*<em[^>]*>/gi, '');
+        return html;
+    }
+
+    // ========================
+    // EXTRACT YOUTUBE URL FROM IFRAME SRC
+    // ========================
+    function extractYouTubeUrl(src) {
+        // src like "https://www.youtube.com/embed/VIDEO_ID"
+        const match = src.match(/youtube\.com\/embed\/([a-zA-Z0-9_-]+)/);
+        if (match) return 'https://youtu.be/' + match[1];
+        return src;
+    }
+
+    // ========================
+    // GET CLEAN TEXT ALIGN
+    // ========================
+    function getTextAlign(el) {
+        const style = el.getAttribute('style') || '';
+        const alignAttr = el.getAttribute('align') || '';
+        const match = style.match(/text-align:\s*(justify|center|right|left)/i);
+        if (match) return match[1].toLowerCase();
+        if (alignAttr) return alignAttr.toLowerCase();
+        return '';
+    }
+
+    // ========================
+    // GET PADDING LEFT (for indentation)
+    // ========================
+    function getPaddingLeft(el) {
+        const style = el.getAttribute('style') || '';
+        let match = style.match(/padding-left:\s*([^;]+)/i);
+        if (match) return match[1].trim();
+        match = style.match(/margin-left:\s*([^;]+)/i);
+        if (match) return match[1].trim();
+        return '';
+    }
+
+    // ========================
+    // CLEAN INNER HTML OF A PARAGRAPH
+    // ========================
+    function cleanInnerHtml(el) {
+        let html = el.innerHTML;
+
+        // Strip font-family spans
+        html = stripDecorativeSpans(html);
+
+        // Remove font-size spans (but we've already checked for heading detection)
+        let prev = '';
+        let max = 10;
+        while (html !== prev && max-- > 0) {
+            prev = html;
+            html = html.replace(/<span\s+style="[^"]*font-size:[^"]*"[^>]*>([\s\S]*?)<\/span>/gi, '$1');
+        }
+
+        // Remove any remaining span wrappers that only have style (no semantic meaning)
+        prev = '';
+        max = 10;
+        while (html !== prev && max-- > 0) {
+            prev = html;
+            html = html.replace(/<span\s+style="[^"]*">([\s\S]*?)<\/span>/gi, '$1');
+        }
+        // Remove bare spans with no attributes
+        prev = '';
+        max = 10;
+        while (html !== prev && max-- > 0) {
+            prev = html;
+            html = html.replace(/<span>([\s\S]*?)<\/span>/gi, '$1');
+        }
+
+        // Convert b/i tags
+        html = convertInlineTags(html);
+
+        // Remove &nbsp; at beginning/end, convert mid-text &nbsp; to space
+        html = html.replace(/&nbsp;/g, '\u00a0');
+
+        // Clean up whitespace
+        html = html.trim();
+
+        // Remove trailing <br> or newlines
+        html = html.replace(/(<br\s*\/?>|\n|\r)+$/gi, '');
+
+        return html;
+    }
+
+    // ========================
+    // CHECK IF PARAGRAPH IS BOLD-ONLY (potential heading or bold para)
+    // ========================
+    function isBoldOnlyParagraph(el) {
+        const clone = el.cloneNode(true);
+        // Remove all spans (decorative)
+        clone.querySelectorAll('span').forEach(s => {
+            while (s.firstChild) s.parentNode.insertBefore(s.firstChild, s);
+            s.remove();
+        });
+        // Remove o:p
+        clone.querySelectorAll('o\\:p').forEach(s => s.remove());
+
+        // Check if content is entirely within <b> or <strong>
+        const children = Array.from(clone.childNodes).filter(n => {
+            if (n.nodeType === 3) return n.textContent.trim().length > 0;
+            return true;
+        });
+
+        if (children.length === 1) {
+            const child = children[0];
+            if (child.nodeType === 1 && (child.tagName === 'B' || child.tagName === 'STRONG')) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // ========================
+    // CHECK IF BOLD PARAGRAPH HAS FONT-SIZE STYLE (→ heading)
+    // ========================
+    function hasFontSizeInBold(el) {
+        const spans = el.querySelectorAll('b span[style], strong span[style]');
+        for (const span of spans) {
+            const style = span.getAttribute('style') || '';
+            if (/font-size/i.test(style)) return true;
+        }
+        // Also check direct font-size on spans wrapping b/strong
+        const allSpans = el.querySelectorAll('span[style]');
+        for (const span of allSpans) {
+            const style = span.getAttribute('style') || '';
+            if (/font-size:\s*medium/i.test(style) || /font-size:\s*large/i.test(style) ||
+                /font-size:\s*x-large/i.test(style)) return true;
+        }
+        return false;
+    }
+
+    // ========================
+    // DETECT SEPARATOR DIV (Blogger image/video container)
+    // ========================
+    function isSeparatorDiv(el) {
+        return el.tagName === 'DIV' && (
+            (el.getAttribute('class') || '').includes('separator') ||
+            (el.getAttribute('style') || '').includes('clear: both')
+        );
+    }
+
+    // ========================
+    // DETECT ENDNOTE LIST
+    // ========================
+    function isEndnoteList(el) {
+        const style = el.getAttribute('style') || '';
+        return style.includes('endnote-list') || style.includes('footnote-list') ||
+               el.querySelector('[id^="edn"], [id^="ftn"], [name^="_ftn"], [name^="_edn"]') !== null;
+    }
+
+    // ========================
+    // DETECT TOGGLE PATTERN
+    // ========================
+    function isToggleLabel(node) {
+        if (node.nodeType !== 1) return false;
+        return node.tagName === 'LABEL' && node.getAttribute('for') &&
+               node.getAttribute('for').startsWith('toggle');
+    }
+
+    // ========================
+    // BUILD WP PARAGRAPH BLOCK
+    // ========================
+    function wpParagraph(innerHtml, textAlign, paddingLeft, fontSize) {
+        let attrs = {};
+        let styleObj = {};
+        let classes = [''];
+
+        if (textAlign && textAlign !== 'left') {
+            if (!attrs.style) attrs.style = { typography: {} };
+            attrs.style.typography.textAlign = textAlign;
+        }
+        if (fontSize) {
+            attrs.fontSize = fontSize;
+        }
+
+        let attrStr = '';
+        let classStr = '';
+        let styleStr = '';
+
+        // Build attribute JSON
+        let jsonParts = [];
+        if (textAlign && textAlign !== 'left') {
+            jsonParts.push(`"style":{"typography":{"textAlign":"${textAlign}"}}`);
+        }
+        if (fontSize) {
+            jsonParts.push(`"fontSize":"${fontSize}"`);
+        }
+        if (jsonParts.length > 0) {
+            attrStr = ' {' + jsonParts.join(',') + '}';
+        }
+
+        // Build class string
+        let classList = [];
+        if (textAlign && textAlign !== 'left') classList.push('has-text-align-' + textAlign);
+        if (fontSize) classList.push('has-' + fontSize + '-font-size');
+        classStr = classList.length > 0 ? ' class="' + classList.join(' ') + '"' : '';
+
+        // Build inline style
+        let styles = [];
+        if (paddingLeft) styles.push('padding-left: ' + paddingLeft);
+        styleStr = styles.length > 0 ? ' style="' + styles.join('; ') + '"' : '';
+
+        return `<!-- wp:paragraph${attrStr} -->\n<p${classStr}${styleStr}>${innerHtml}</p>\n<!-- /wp:paragraph -->`;
+    }
+
+    // ========================
+    // BUILD WP HEADING BLOCK
+    // ========================
+    function wpHeading(innerHtml, level, textAlign, fontSize) {
+        let jsonParts = [];
+        if (level !== 2) jsonParts.push(`"level":${level}`);
+        
+        let styleParts = [];
+        if (textAlign && textAlign !== 'left') {
+            styleParts.push(`"textAlign":"${textAlign}"`);
+        }
+        if (fontSize) {
+            styleParts.push(`"fontSize":"${fontSize}"`);
+        }
+        if (styleParts.length > 0) {
+            jsonParts.push(`"style":{"typography":{${styleParts.join(',')}}}`);
+        }
+
+        let attrStr = jsonParts.length > 0 ? ' {' + jsonParts.join(',') + '}' : '';
+
+        let classList = ['wp-block-heading'];
+        if (textAlign && textAlign !== 'left') classList.push('has-text-align-' + textAlign);
+        let classStr = ' class="' + classList.join(' ') + '"';
+
+        let styles = [];
+        if (fontSize) styles.push('font-size:' + fontSize);
+        let styleStr = styles.length > 0 ? ' style="' + styles.join(';') + '"' : '';
+
+        return `<!-- wp:heading${attrStr} -->\n<h${level}${classStr}${styleStr}>${innerHtml}</h${level}>\n<!-- /wp:heading -->`;
+    }
+
+    // ========================
+    // BUILD WP IMAGE BLOCK
+    // ========================
+    function wpImage(src, alt, caption, align, width, height) {
+        let jsonParts = [];
+        if (align) jsonParts.push(`"align":"${align}"`);
+        jsonParts.push(`"sizeSlug":"large"`);
+        if (width || height) {
+            if (width) jsonParts.push(`"width":"${width}"`);
+            if (height) jsonParts.push(`"height":"${height}"`);
+        }
+
+        let attrStr = jsonParts.length > 0 ? ' {' + jsonParts.join(',') + '}' : '';
+
+        let classList = ['wp-block-image'];
+        if (align) classList.push('align' + align);
+        classList.push('size-large');
+        if (width || height) classList.push('is-resized');
+        let classStr = ' class="' + classList.join(' ') + '"';
+
+        let imgStyle = '';
+        if (width || height) {
+            let parts = [];
+            if (width) parts.push('width:' + width);
+            if (height) parts.push('height:' + height);
+            imgStyle = ' style="' + parts.join(';') + '"';
+        }
+
+        let imgTag = `<img src="${src}" alt="${alt || ''}"${imgStyle} />`;
+        let captionHtml = caption ? `<figcaption class="wp-element-caption">${caption}</figcaption>` : '';
+
+        return `<!-- wp:image${attrStr} -->\n<figure${classStr}>${imgTag}${captionHtml}</figure>\n<!-- /wp:image -->`;
+    }
+
+    // ========================
+    // BUILD WP EMBED BLOCK (YouTube)
+    // ========================
+    function wpEmbed(url, caption) {
+        let jsonParts = [`"url":"${url}"`];
+        if (url.includes('youtu')) {
+            jsonParts.push(`"type":"video"`, `"providerNameSlug":"youtube"`, `"responsive":true`,
+                `"className":"wp-embed-aspect-16-9 wp-has-aspect-ratio"`);
+        }
+        let attrStr = ' {' + jsonParts.join(',') + '}';
+
+        let classList = ['wp-block-embed'];
+        if (url.includes('youtu')) {
+            classList.push('is-type-video', 'is-provider-youtube', 'wp-block-embed-youtube',
+                'wp-embed-aspect-16-9', 'wp-has-aspect-ratio');
+        }
+        let classStr = ' class="' + classList.join(' ') + '"';
+
+        let captionHtml = caption ? `<figcaption class="wp-element-caption">${caption}</figcaption>` : '';
+
+        return `<!-- wp:embed${attrStr} -->\n<figure${classStr}><div class="wp-block-embed__wrapper">\n${url}\n</div>${captionHtml}</figure>\n<!-- /wp:embed -->`;
+    }
+
+    // ========================
+    // BUILD WP MORE BLOCK
+    // ========================
+    function wpMore() {
+        return `<!-- wp:more -->\n<!--more-->\n<!-- /wp:more -->`;
+    }
+
+    // ========================
+    // BUILD WP SEPARATOR BLOCK
+    // ========================
+    function wpSeparator() {
+        return `<!-- wp:separator -->\n<hr class="wp-block-separator has-alpha-channel-opacity" />\n<!-- /wp:separator -->`;
+    }
+
+    // ========================
+    // BUILD WP DETAILS BLOCK
+    // ========================
+    function wpDetails(summary, contentHtml) {
+        return `<!-- wp:details -->\n<details class="wp-block-details"><summary>${summary}</summary><!-- wp:paragraph -->\n<p>${contentHtml}</p>\n<!-- /wp:paragraph --></details>\n<!-- /wp:details -->`;
+    }
+
+    // ========================
+    // PROCESS SEPARATOR DIV → IMAGE or VIDEO block
+    // ========================
+    function processSeparatorDiv(div) {
+        const iframe = div.querySelector('iframe');
+        const img = div.querySelector('img');
+        const figcaption = div.querySelector('figcaption');
+        const caption = figcaption ? cleanInnerHtml(figcaption) : '';
+
+        // Check for YouTube iframe
+        if (iframe) {
+            const src = iframe.getAttribute('src') || '';
+            const ytUrl = extractYouTubeUrl(src);
+            stats.videos++;
+            return wpEmbed(ytUrl, caption);
+        }
+
+        // Image
+        if (img) {
+            const src = img.getAttribute('src') || '';
+            const alt = img.getAttribute('alt') || '';
+            
+            // Check if small/aligned image (author photo)
+            const containerStyle = div.innerHTML;
+            let align = '';
+            let width = '';
+            let height = 'auto';
+
+            // Detect float left (author image pattern)
+            if (containerStyle.includes('float: left') || containerStyle.includes('float:left')) {
+                align = 'left';
+            }
+
+            // Detect explicit small dimensions
+            const imgWidth = img.getAttribute('width');
+            const imgHeight = img.getAttribute('height');
+            if (imgWidth && parseInt(imgWidth) <= 200) {
+                width = imgWidth + 'px';
+                height = 'auto';
+            }
+
+            stats.images++;
+            return wpImage(src, alt, caption, align, width, width ? height : '');
+        }
+
+        return '';
+    }
+
+    // ========================
+    // PROCESS ENDNOTE/FOOTNOTE SECTION
+    // ========================
+    function processEndnoteList(div, blocks) {
+        // Add separator
+        stats.separators++;
+        blocks.push(wpSeparator());
+
+        // Find all endnote/footnote paragraphs
+        const paragraphs = div.querySelectorAll('p');
+        for (const p of paragraphs) {
+            let html = cleanInnerHtml(p);
+            if (html.trim()) {
+                // Clean footnote reference structure
+                html = html.replace(/<span[^>]*class="[^"]*EndnoteReference[^"]*"[^>]*>/gi, '');
+                html = html.replace(/<\/span>/gi, '');
+                html = html.trim();
+                
+                if (html) {
+                    stats.footnotes++;
+                    blocks.push(wpParagraph(html, 'justify', '', ''));
+                }
+            }
+        }
+    }
+
+    // ========================
+    // PROCESS TOGGLE PATTERN
+    // ========================
+    function processToggle(children, startIndex) {
+        const label = children[startIndex];
+        const summary = label.textContent.trim();
+        let skip = 1;
+        let contentHtml = '';
+
+        // Find the input checkbox and toggle-content div
+        for (let j = startIndex + 1; j < children.length && j < startIndex + 5; j++) {
+            const node = children[j];
+            if (node.nodeType !== 1) { skip++; continue; }
+            
+            if (node.tagName === 'INPUT' && node.getAttribute('type') === 'checkbox') {
+                skip++;
+                continue;
+            }
+            if ((node.getAttribute('class') || '').includes('toggle-content')) {
+                // Extract content, remove close label
+                const clone = node.cloneNode(true);
+                clone.querySelectorAll('label').forEach(l => l.remove());
+                contentHtml = cleanInnerHtml(clone);
+                skip++;
+                continue;
+            }
+            if (node.tagName === 'STYLE') {
+                skip++;
+                continue;
+            }
+            // If we hit something else, stop
+            if (node.tagName !== 'INPUT' && !(node.getAttribute('class') || '').includes('toggle') &&
+                node.tagName !== 'STYLE') {
+                break;
+            }
+            skip++;
+        }
+
+        stats.toggles++;
+        return { block: wpDetails(summary, contentHtml), skip: skip };
+    }
+
+    // ========================
+    // MAIN CONVERT FUNCTION
+    // ========================
+    function convert(bloggerHtml) {
+        stats = { headings: 0, paragraphs: 0, images: 0, videos: 0, toggles: 0, more: 0, separators: 0, footnotes: 0 };
+
+        // Step 1: Pre-clean
+        let html = preClean(bloggerHtml);
+        
+        // Step 2: Clean link patterns
+        html = cleanLinks(html);
+        
+        // Step 3: Parse into DOM
+        const parser = new DOMParser();
+        const doc = parser.parseFromString('<div id="wp-root">' + html + '</div>', 'text/html');
+        const root = doc.getElementById('wp-root');
+        
+        // Step 4: Walk nodes and build blocks
+        const blocks = [];
+        const children = Array.from(root.childNodes);
+        let i = 0;
+        let isFirstHeading = true;
+
+        while (i < children.length) {
+            const node = children[i];
+
+            // Skip whitespace-only text nodes
+            if (node.nodeType === 3 && !node.textContent.trim()) { i++; continue; }
+
+            // HTML comment nodes (<!--more--> etc.)
+            if (node.nodeType === 8) {
+                const text = node.textContent.trim();
+                if (text === 'more') {
+                    stats.more++;
+                    blocks.push(wpMore());
+                }
+                i++;
+                continue;
+            }
+
+            // Only process element nodes from here
+            if (node.nodeType !== 1) { i++; continue; }
+
+            const tag = node.tagName.toLowerCase();
+
+            // ---- TOGGLE DETECTION ----
+            if (isToggleLabel(node)) {
+                const result = processToggle(children, i);
+                blocks.push(result.block);
+                i += result.skip;
+                continue;
+            }
+
+            // ---- STYLE tags → skip ----
+            if (tag === 'style') { i++; continue; }
+
+            // ---- INPUT (leftover from toggle) → skip ----
+            if (tag === 'input') { i++; continue; }
+
+            // ---- HR → separator ----
+            if (tag === 'hr') {
+                stats.separators++;
+                blocks.push(wpSeparator());
+                i++; continue;
+            }
+
+            // ---- H1 → H2 heading with font-size 36px ----
+            if (tag === 'h1') {
+                const innerHtml = cleanInnerHtml(node);
+                const textAlign = getTextAlign(node) || 'center';
+                stats.headings++;
+                if (isFirstHeading) {
+                    blocks.push(wpHeading('<strong>' + innerHtml.replace(/<\/?strong>/gi, '') + '</strong>', 2, textAlign, '36px'));
+                    isFirstHeading = false;
+                } else {
+                    blocks.push(wpHeading('<strong>' + innerHtml.replace(/<\/?strong>/gi, '') + '</strong>', 2, textAlign, ''));
+                }
+                i++; continue;
+            }
+
+            // ---- H2, H3 → heading block ----
+            if (tag === 'h2' || tag === 'h3') {
+                const innerHtml = cleanInnerHtml(node);
+                const level = parseInt(tag[1]);
+                stats.headings++;
+                blocks.push(wpHeading(innerHtml, level, getTextAlign(node), ''));
+                i++; continue;
+            }
+
+            // ---- SEPARATOR DIV (image/video container) ----
+            if (tag === 'div' && isSeparatorDiv(node)) {
+                const block = processSeparatorDiv(node);
+                if (block) blocks.push(block);
+                i++; continue;
+            }
+
+            // ---- ENDNOTE/FOOTNOTE LIST DIV ----
+            if (tag === 'div' && isEndnoteList(node)) {
+                processEndnoteList(node, blocks);
+                i++; continue;
+            }
+
+            // ---- GENERIC DIV → recurse ----
+            if (tag === 'div') {
+                // Check if it contains endnote-related elements
+                const innerBlocks = [];
+                const divChildren = Array.from(node.childNodes);
+                let di = 0;
+                while (di < divChildren.length) {
+                    const dNode = divChildren[di];
+                    if (dNode.nodeType === 1) {
+                        if (dNode.tagName === 'HR') {
+                            stats.separators++;
+                            innerBlocks.push(wpSeparator());
+                        } else if (dNode.tagName === 'DIV' && isEndnoteList(dNode)) {
+                            processEndnoteList(dNode, innerBlocks);
+                        } else if (dNode.tagName === 'P') {
+                            const block = processParagraph(dNode);
+                            if (block) innerBlocks.push(block);
+                        }
+                    }
+                    di++;
+                }
+                if (innerBlocks.length > 0) {
+                    blocks.push(...innerBlocks);
+                }
+                i++; continue;
+            }
+
+            // ---- PARAGRAPH ----
+            if (tag === 'p') {
+                const block = processParagraph(node);
+                if (block) blocks.push(block);
+                i++; continue;
+            }
+
+            // ---- FIGURE (standalone, not in div) ----
+            if (tag === 'figure') {
+                const iframe = node.querySelector('iframe');
+                const img = node.querySelector('img');
+                const figcaption = node.querySelector('figcaption');
+                const caption = figcaption ? cleanInnerHtml(figcaption) : '';
+
+                if (iframe) {
+                    const src = iframe.getAttribute('src') || '';
+                    stats.videos++;
+                    blocks.push(wpEmbed(extractYouTubeUrl(src), caption));
+                } else if (img) {
+                    stats.images++;
+                    blocks.push(wpImage(img.getAttribute('src') || '', img.getAttribute('alt') || '', caption, '', '', ''));
+                }
+                i++; continue;
+            }
+
+            // ---- SPAN wrapping content (leftover Blogger wrapper) ----
+            if (tag === 'span') {
+                // Might contain footnote/endnote content - skip if empty
+                const text = node.textContent.trim();
+                if (text) {
+                    const inner = cleanInnerHtml(node);
+                    if (inner) {
+                        stats.paragraphs++;
+                        blocks.push(wpParagraph(inner, 'justify', '', ''));
+                    }
+                }
+                i++; continue;
+            }
+
+            // ---- A tag at top level (unlikely but handle) ----
+            if (tag === 'a') {
+                i++; continue;
+            }
+
+            i++;
+        }
+
+        return blocks.join('\n\n');
+    }
+
+    // ========================
+    // PROCESS A SINGLE PARAGRAPH
+    // ========================
+    function processParagraph(node) {
+        const textAlign = getTextAlign(node);
+        const paddingLeft = getPaddingLeft(node);
+        
+        // Check if it's a bold-only paragraph (potential heading or styled para)
+        if (isBoldOnlyParagraph(node)) {
+            if (hasFontSizeInBold(node)) {
+                // This is a sub-heading → H2
+                let innerHtml = cleanInnerHtml(node);
+                stats.headings++;
+                return wpHeading(innerHtml, 2, '', '');
+            } else {
+                // Bold paragraph → paragraph with medium font size
+                let innerHtml = cleanInnerHtml(node);
+                // Check if it's very short (like "Tác giả", "Tuyên bố công khai")
+                const plainText = node.textContent.trim();
+                if (plainText.length < 50) {
+                    stats.paragraphs++;
+                    return wpParagraph(innerHtml, textAlign, paddingLeft, 'medium');
+                } else {
+                    stats.paragraphs++;
+                    return wpParagraph(innerHtml, textAlign, paddingLeft, '');
+                }
+            }
+        }
+
+        let innerHtml = cleanInnerHtml(node);
+        
+        // Skip empty paragraphs
+        if (!innerHtml.trim() || innerHtml.trim() === '&nbsp;' || innerHtml.trim() === '\u00a0') {
+            return null;
+        }
+
+        stats.paragraphs++;
+        return wpParagraph(innerHtml, textAlign, paddingLeft, '');
+    }
+
+    // ========================
+    // EVENT HANDLERS
+    // ========================
+    transformBtn.addEventListener('click', function() {
+        if (!inputText.value.trim()) {
+            showStatus('Paste HTML từ Blogger vào input trước.');
+            return;
+        }
+
+        try {
+            const result = convert(inputText.value);
+            outputText.value = result;
+            copyBtn.disabled = false;
+
+            const parts = [];
+            if (stats.headings > 0) parts.push(stats.headings + ' heading');
+            if (stats.paragraphs > 0) parts.push(stats.paragraphs + ' paragraph');
+            if (stats.images > 0) parts.push(stats.images + ' image');
+            if (stats.videos > 0) parts.push(stats.videos + ' video');
+            if (stats.toggles > 0) parts.push(stats.toggles + ' toggle');
+            if (stats.more > 0) parts.push(stats.more + ' more');
+            if (stats.separators > 0) parts.push(stats.separators + ' separator');
+            if (stats.footnotes > 0) parts.push(stats.footnotes + ' footnote');
+
+            showStatus('Convert thành công! Blocks: ' + parts.join(', '));
+        } catch (e) {
+            showStatus('Lỗi: ' + e.message);
+            console.error(e);
+        }
+    });
+
+    copyBtn.addEventListener('click', function() {
+        outputText.select();
+        document.execCommand('copy');
+        showStatus('Đã copy!');
+        setTimeout(() => { statusMessage.style.display = 'none'; }, 2000);
+    });
+});
+</script>
+</body>
+</html>
