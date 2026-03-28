@@ -795,6 +795,26 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 i++; continue;
             }
+            // ---- LIST (ul/ol) ----
+            if (tag === 'ul' || tag === 'ol') {
+                const items = node.querySelectorAll('li');
+                let listItems = '';
+                items.forEach(li => {
+                    const inner = cleanInnerHtml(li);
+                    if (inner.trim()) {
+                        listItems += `<!-- wp:list-item -->\n<li>${inner}</li>\n<!-- /wp:list-item -->\n`;
+                    }
+                });
+                if (listItems) {
+                    const listTag = tag;
+                    const blockName = tag === 'ol' ? 'list {"ordered":true}' : 'list';
+                    const listClass = tag === 'ol' ? 'wp-block-list' : 'wp-block-list';
+                    stats.paragraphs++;
+                    blocks.push(`<!-- wp:${blockName} -->\n<${listTag} class="${listClass}">${listItems}</${listTag}>\n<!-- /wp:list -->`);
+                }
+                i++; continue;
+            }
+
             // ---- SEPARATOR DIV (image/video container) ----
             if (tag === 'div' && isSeparatorDiv(node)) {
                 const block = processSeparatorDiv(node);
