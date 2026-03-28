@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto Hyperlink</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.5;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 24px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 16px;
+        }
+        details.instruction-box {
+            background-color: #ebf5ff;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+        }
+        details.instruction-box summary {
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        details.instruction-box p,
+        details.instruction-box ul {
+            font-size: 14px;
+            margin-top: 8px;
+            margin-bottom: 4px;
+        }
+        details.instruction-box ul {
+            margin-left: 20px;
+        }
+        .form-group {
+            margin-bottom: 16px;
+        }
+        label {
+            display: block;
+            margin-bottom: 4px;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        input[type="text"], textarea, select {
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 8px 12px;
+            width: 100%;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+        textarea {
+            font-family: monospace;
+            font-size: 13px;
+            height: 160px;
+            resize: vertical;
+        }
+        textarea#jsonPreview {
+            height: 100px;
+            background-color: #fafafa;
+            color: #555;
+        }
+        select {
+            background-color: white;
+            cursor: pointer;
+        }
+        button {
+            padding: 8px 16px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 14px;
+            margin-right: 8px;
+        }
+        button.primary {
+            background-color: #1a73e8;
+            color: white;
+        }
+        button.primary:hover {
+            background-color: #0d66da;
+        }
+        button.success {
+            background-color: #34a853;
+            color: white;
+        }
+        button.success:hover {
+            background-color: #2d9249;
+        }
+        button.secondary {
+            background-color: #f1f3f4;
+            color: #333;
+        }
+        button.secondary:hover {
+            background-color: #e2e5e8;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+            color: #888;
+        }
+        .status {
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-bottom: 16px;
+            display: none;
+            font-size: 14px;
+        }
+        .status.info {
+            background-color: #e8f0fe;
+            color: #1967d2;
+        }
+        .status.success {
+            background-color: #e6f4ea;
+            color: #137333;
+        }
+        .status.error {
+            background-color: #fce8e6;
+            color: #c5221f;
+        }
+        .report-box {
+            background-color: #f8f9fa;
+            border: 1px solid #dadce0;
+            border-radius: 4px;
+            padding: 12px;
+            margin-bottom: 16px;
+            display: none;
+            font-size: 13px;
+        }
+        .report-box h3 {
+            font-size: 13px;
+            font-weight: 600;
+            margin: 0 0 8px 0;
+            color: #333;
+        }
+        .report-linked { color: #137333; }
+        .report-item {
+            padding: 2px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .report-item:last-child { border-bottom: none; }
+        .json-file-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+        .json-file-row input[type="file"] {
+            display: none;
+        }
+        .file-label {
+            display: inline-block;
+            padding: 6px 12px;
+            background-color: #f1f3f4;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        .file-label:hover {
+            background-color: #e2e5e8;
+        }
+        .file-name {
+            font-size: 13px;
+            color: #555;
+            font-style: italic;
+        }
+        .section-divider {
+            border: none;
+            border-top: 1px solid #e0e0e0;
+            margin: 20px 0;
+        }
+        .platform-toggle {
+            display: flex;
+            gap: 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            overflow: hidden;
+            width: fit-content;
+        }
+        .platform-toggle input[type="radio"] {
+            display: none;
+        }
+        .platform-toggle label {
+            display: block;
+            padding: 7px 20px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 14px;
+            background-color: #f1f3f4;
+            color: #555;
+            margin: 0;
+            border: none;
+            transition: background-color 0.15s, color 0.15s;
+        }
+        .platform-toggle label:first-of-type {
+            border-right: 1px solid #ccc;
+        }
+        .platform-toggle input[type="radio"]:checked + label {
+            background-color: #1a73e8;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Auto Hyperlink</h1>
+
+        <details class="instruction-box">
+            <summary>Huong dan su dung (click de mo)</summary>
+            <p><strong>Workflow:</strong></p>
+            <ul>
+                <li>JSON tu dong load tu <code>hyperlinks.json</code> cung thu muc. Neu khong tim thay, upload thu cong.</li>
+                <li>Format JSON: <code>[{"anchor": "...", "com": "...", "wp": "..."}]</code> hoac object/nested</li>
+                <li>Chon platform: COM hoac WP</li>
+                <li>Paste HTML vao input, nhan Process</li>
+                <li>Tool tim anchor text theo thu tu JSON, chi trong plain text (bo qua text da co link)</li>
+                <li>Moi URL chi dung 1 lan — khi URL da duoc dung, tat ca anchor text con lai cung URL do se bi skip</li>
+                <li>Link output: mau #C00000, khong underline</li>
+            </ul>
+        </details>
+
+        <!-- JSON file load -->
+        <div class="form-group">
+            <label>Link Data (JSON)</label>
+            <div class="json-file-row">
+                <label class="file-label" for="jsonFile">Upload JSON</label>
+                <input type="file" id="jsonFile" accept=".json">
+                <span class="file-name" id="fileName">Dang tim hyperlinks.json...</span>
+                <button class="secondary" id="clearJsonBtn" style="padding: 5px 10px; font-size: 13px;">Xoa</button>
+            </div>
+            <textarea id="jsonPreview" placeholder='Preview JSON...' readonly></textarea>
+        </div>
+
+        <!-- Platform selector -->
+        <div class="form-group">
+            <label>Platform</label>
+            <div class="platform-toggle">
+                <input type="radio" name="platform" id="platformCOM" value="com" checked>
+                <label for="platformCOM">COM</label>
+                <input type="radio" name="platform" id="platformWP" value="wp">
+                <label for="platformWP">WP</label>
+            </div>
+        </div>
+
+        <hr class="section-divider">
+
+        <!-- HTML input -->
+        <div class="form-group">
+            <label for="inputHtml">Input HTML</label>
+            <textarea id="inputHtml" placeholder="Paste HTML vao day..."></textarea>
+        </div>
+
+        <button class="primary" id="processBtn">Process</button>
+        <button class="secondary" id="clearBtn">Clear</button>
+
+        <div id="statusMessage" class="status info"></div>
+
+        <!-- Report -->
+        <div class="report-box" id="reportBox">
+            <h3>Report</h3>
+            <div id="reportContent"></div>
+        </div>
+
+        <hr class="section-divider">
+
+        <!-- HTML output -->
+        <div class="form-group">
+            <label for="outputHtml">Output HTML</label>
+            <textarea id="outputHtml" placeholder="Output se hien o day..." readonly></textarea>
+        </div>
+
+        <button class="success" id="copyBtn" disabled>Copy to Clipboard</button>
+    </div>
+
+    <script>
+    (function () {
+        // --- State ---
+        let linkData = [];
+
+        // --- DOM refs ---
+        const jsonFileInput = document.getElementById('jsonFile');
+        const fileNameEl = document.getElementById('fileName');
+        const jsonPreview = document.getElementById('jsonPreview');
+        const clearJsonBtn = document.getElementById('clearJsonBtn');
+        const inputHtml = document.getElementById('inputHtml');
+        const outputHtml = document.getElementById('outputHtml');
+        const processBtn = document.getElementById('processBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const copyBtn = document.getElementById('copyBtn');
+        const statusMessage = document.getElementById('statusMessage');
+        const reportBox = document.getElementById('reportBox');
+        const reportContent = document.getElementById('reportContent');
+
+        // --- Auto-load hyperlinks.json from same directory ---
+        (function autoLoadJson() {
+            fetch('hyperlinks.json')
+                .then(function (res) {
+                    if (!res.ok) throw new Error('Not found');
+                    return res.json();
+                })
+                .then(function (parsed) {
+                    linkData = normalizeJson(parsed);
+                    fileNameEl.textContent = 'hyperlinks.json (auto-loaded)';
+                    jsonPreview.value = JSON.stringify(linkData, null, 2);
+                    showStatus('Auto-loaded ' + linkData.length + ' entries tu hyperlinks.json', 'success');
+                })
+                .catch(function () {
+                    fileNameEl.textContent = 'Chua co file — upload thu cong';
+                });
+        })();
+
+        // --- Normalize any JSON format to [{anchor, com, wp}] ---
+        function normalizeJson(parsed) {
+            if (Array.isArray(parsed)) {
+                return parsed;
+            }
+            if (typeof parsed === 'object' && parsed !== null) {
+                const firstVal = Object.values(parsed)[0];
+                const isFlat = firstVal && (firstVal.blogger || firstVal.wordpress || firstVal.com || firstVal.wp);
+                if (isFlat) {
+                    return Object.entries(parsed).map(function (pair) {
+                        var anchor = pair[0], urls = pair[1];
+                        return {
+                            anchor: anchor,
+                            com: urls.blogger || urls.com || '',
+                            wp: urls.wordpress || urls.wp || ''
+                        };
+                    });
+                }
+                // Nested format
+                var result = [];
+                for (var key in parsed) {
+                    var category = parsed[key];
+                    if (typeof category !== 'object' || category === null) continue;
+                    for (var anchor in category) {
+                        var urls = category[anchor];
+                        if (typeof urls !== 'object' || urls === null) continue;
+                        result.push({
+                            anchor: anchor,
+                            com: urls.blogger || urls.com || '',
+                            wp: urls.wordpress || urls.wp || ''
+                        });
+                    }
+                }
+                return result;
+            }
+            throw new Error('JSON phai la array hoac object');
+        }
+
+        // --- JSON file upload (fallback) ---
+        jsonFileInput.addEventListener('change', function () {
+            var file = this.files[0];
+            if (!file) return;
+            var reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    var parsed = JSON.parse(e.target.result);
+                    linkData = normalizeJson(parsed);
+                    fileNameEl.textContent = file.name;
+                    jsonPreview.value = JSON.stringify(linkData, null, 2);
+                    showStatus('Loaded ' + linkData.length + ' entries tu ' + file.name, 'success');
+                } catch (err) {
+                    showStatus('Loi parse JSON: ' + err.message, 'error');
+                    linkData = [];
+                    jsonPreview.value = '';
+                    fileNameEl.textContent = 'Loi doc file';
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        clearJsonBtn.addEventListener('click', function () {
+            linkData = [];
+            jsonPreview.value = '';
+            fileNameEl.textContent = 'Chua co file';
+            jsonFileInput.value = '';
+            hideStatus();
+        });
+
+        // --- Process ---
+        processBtn.addEventListener('click', function () {
+            if (!linkData.length) {
+                showStatus('Chua load JSON data.', 'error');
+                return;
+            }
+            var html = inputHtml.value;
+            if (!html.trim()) {
+                showStatus('Chua co HTML input.', 'error');
+                return;
+            }
+
+            var platform = document.querySelector('input[name="platform"]:checked').value;
+            var result = processHtml(html, linkData, platform);
+
+            outputHtml.value = result.html;
+            copyBtn.disabled = false;
+            renderReport(result.report);
+
+            var linked = result.report.filter(function (r) { return r.status === 'linked'; }).length;
+            showStatus('Done — ' + linked + ' linked.', 'success');
+        });
+
+        // --- Core processing ---
+        function processHtml(html, data, platform) {
+            var usedUrls = new Set();
+            var report = [];
+
+            for (var idx = 0; idx < data.length; idx++) {
+                var entry = data[idx];
+                var anchor = entry.anchor;
+                var url = entry[platform];
+
+                if (!anchor || !url) {
+                    report.push({ anchor: anchor || '(empty)', status: 'skipped', reason: 'Missing anchor or URL' });
+                    continue;
+                }
+
+                if (usedUrls.has(url)) {
+                    report.push({ anchor: anchor, status: 'skipped', reason: 'URL da duoc dung roi' });
+                    continue;
+                }
+
+                var res = insertLink(html, anchor, url);
+
+                if (res.found) {
+                    html = res.newHtml;
+                    usedUrls.add(url);
+                    report.push({ anchor: anchor, linkedText: res.linkedText, status: 'linked', url: url });
+                } else {
+                    report.push({ anchor: anchor, status: 'skipped', reason: 'Anchor text khong tim thay trong HTML' });
+                }
+            }
+
+            return { html: html, report: report };
+        }
+
+        function insertLink(html, anchor, url) {
+            var anchorLower = anchor.toLowerCase();
+            var lower = html.toLowerCase();
+
+            var i = 0;
+            var insideAnchor = 0;
+
+            while (i < html.length) {
+                if (html[i] === '<') {
+                    var tagMatch = lower.slice(i).match(/^<(\/?)([a-z][a-z0-9]*)/);
+                    if (tagMatch) {
+                        var isClose = tagMatch[1] === '/';
+                        var tagName = tagMatch[2];
+                        if (tagName === 'a') {
+                            insideAnchor += isClose ? -1 : 1;
+                            if (insideAnchor < 0) insideAnchor = 0;
+                        }
+                        var tagEnd = html.indexOf('>', i);
+                        if (tagEnd === -1) break;
+                        i = tagEnd + 1;
+                        continue;
+                    }
+                }
+
+                if (insideAnchor === 0) {
+                    var pos = lower.indexOf(anchorLower, i);
+                    if (pos === -1) break;
+
+                    var matchStart = pos;
+                    var matchEnd = pos + anchor.length;
+
+                    var segment = html.slice(i, matchStart);
+                    var lastOpen = segment.lastIndexOf('<');
+                    var lastClose = segment.lastIndexOf('>');
+                    if (lastOpen > lastClose) {
+                        i = matchStart + 1;
+                        continue;
+                    }
+
+                    var originalText = html.slice(matchStart, matchEnd);
+                    var linkTag = '<a href="' + url + '" style="color:#C00000;text-decoration:none;">' + originalText + '</a>';
+
+                    var newHtml = html.slice(0, matchStart) + linkTag + html.slice(matchEnd);
+                    return { newHtml: newHtml, found: true, linkedText: originalText };
+                }
+
+                i++;
+            }
+
+            return { newHtml: html, found: false, linkedText: null };
+        }
+
+        // --- Render report: only show linked items ---
+        function renderReport(report) {
+            var linked = report.filter(function (r) { return r.status === 'linked'; });
+
+            if (!linked.length) {
+                reportBox.style.display = 'none';
+                return;
+            }
+
+            reportBox.style.display = 'block';
+            var html = '';
+            html += '<div style="margin-bottom:8px;"><strong class="report-linked">Linked (' + linked.length + ')</strong></div>';
+            for (var i = 0; i < linked.length; i++) {
+                var r = linked[i];
+                html += '<div class="report-item report-linked">' + escHtml(r.linkedText || r.anchor) + '</div>';
+            }
+            reportContent.innerHTML = html;
+        }
+
+        // --- Copy ---
+        copyBtn.addEventListener('click', function () {
+            outputHtml.select();
+            document.execCommand('copy');
+            showStatus('Copied to clipboard!', 'success');
+            setTimeout(hideStatus, 2000);
+        });
+
+        // --- Clear ---
+        clearBtn.addEventListener('click', function () {
+            inputHtml.value = '';
+            outputHtml.value = '';
+            copyBtn.disabled = true;
+            reportBox.style.display = 'none';
+            hideStatus();
+        });
+
+        // --- Helpers ---
+        function showStatus(msg, type) {
+            statusMessage.textContent = msg;
+            statusMessage.className = 'status ' + (type || 'info');
+            statusMessage.style.display = 'block';
+        }
+        function hideStatus() {
+            statusMessage.style.display = 'none';
+        }
+        function escHtml(str) {
+            return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+    })();
+    </script>
+</body>
+</html>
