@@ -27,7 +27,7 @@
             margin-bottom: 16px;
         }
         details.instruction-box {
-            background-color: #ebf5ff;
+            background-color: #f5f3ed;
             padding: 12px;
             border-radius: 6px;
             margin-bottom: 16px;
@@ -88,18 +88,18 @@
             margin-right: 8px;
         }
         button.primary {
-            background-color: #1a73e8;
+            background-color: #1b3a5c;
             color: white;
         }
         button.primary:hover {
-            background-color: #0d66da;
+            background-color: #142d47;
         }
         button.success {
-            background-color: #34a853;
+            background-color: #c89b3c;
             color: white;
         }
         button.success:hover {
-            background-color: #2d9249;
+            background-color: #a67f2e;
         }
         button.secondary {
             background-color: #f1f3f4;
@@ -121,12 +121,12 @@
             font-size: 14px;
         }
         .status.info {
-            background-color: #e8f0fe;
-            color: #1967d2;
+            background-color: #f5f3ed;
+            color: #1b3a5c;
         }
         .status.success {
-            background-color: #e6f4ea;
-            color: #137333;
+            background-color: #fdf8ec;
+            color: #8a6914;
         }
         .status.error {
             background-color: #fce8e6;
@@ -147,7 +147,7 @@
             margin: 0 0 8px 0;
             color: #333;
         }
-        .report-linked { color: #137333; }
+        .report-linked { color: #8a6914; }
         .report-item {
             padding: 2px 0;
             border-bottom: 1px solid #eee;
@@ -213,7 +213,7 @@
             border-right: 1px solid #ccc;
         }
         .platform-toggle input[type="radio"]:checked + label {
-            background-color: #1a73e8;
+            background-color: #1b3a5c;
             color: white;
         }
     </style>
@@ -223,16 +223,16 @@
         <h1>Auto Hyperlink</h1>
 
         <details class="instruction-box">
-            <summary>Huong dan su dung (click de mo)</summary>
+            <summary>Hướng dẫn sử dụng (click để mở)</summary>
             <p><strong>Workflow:</strong></p>
             <ul>
-                <li>JSON tu dong load tu <code>hyperlinks.json</code> cung thu muc. Neu khong tim thay, upload thu cong.</li>
-                <li>Format JSON: <code>[{"anchor": "...", "com": "...", "wp": "..."}]</code> hoac object/nested</li>
-                <li>Chon platform: COM hoac WP</li>
-                <li>Paste HTML vao input, nhan Process</li>
-                <li>Tool tim anchor text theo thu tu JSON, chi trong plain text (bo qua text da co link)</li>
-                <li>Moi URL chi dung 1 lan — khi URL da duoc dung, tat ca anchor text con lai cung URL do se bi skip</li>
-                <li>Link output: mau #C00000, khong underline</li>
+                <li>JSON tự động load từ <code>hyperlinks.json</code> cùng thư mục. Nếu không tìm thấy, upload thủ công.</li>
+                <li>Format JSON: <code>[{"anchor": "...", "com": "...", "wp": "..."}]</code> hoặc object/nested</li>
+                <li>Chọn platform: COM hoặc WP</li>
+                <li>Paste HTML vào input, nhấn Process</li>
+                <li>Tool tìm anchor text theo thứ tự JSON, chỉ trong plain text (bỏ qua text đã có link)</li>
+                <li>Mỗi URL chỉ dùng 1 lần — khi URL đã được dùng, tất cả anchor text còn lại cùng URL đó sẽ bị skip</li>
+                <li>Link output: màu #C00000, không underline</li>
             </ul>
         </details>
 

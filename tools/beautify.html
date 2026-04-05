@@ -22,12 +22,12 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
         h1 { font-size: 22px; margin-bottom: 16px; }
-        h3 { font-size: 15px; margin-bottom: 8px; color: #1a73e8; }
+        h3 { font-size: 15px; margin-bottom: 8px; color: #1b3a5c; }
 
         /* Platform selector */
         .platform-bar {
             display: flex; gap: 16px; align-items: center;
-            padding: 10px 14px; background: #f0f4ff; border-radius: 6px; margin-bottom: 16px;
+            padding: 10px 14px; background: #f5f3ed; border-radius: 6px; margin-bottom: 16px;
         }
         .platform-bar label { font-weight: 500; cursor: pointer; font-size: 14px; }
         .platform-bar input[type="radio"] { margin-right: 4px; }
@@ -46,8 +46,8 @@
         .group-box {
             flex: 1; border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px;
         }
-        .group-box.style-group { border-color: #a8d5ff; background: #f8fbff; }
-        .group-box.clean-group { border-color: #a8e6cf; background: #f8fff8; }
+        .group-box.style-group { border-color: #c9bfa0; background: #f5f3ed; }
+        .group-box.clean-group { border-color: #d9c97c; background: #fdf8ec; }
 
         .cb-row { margin-bottom: 6px; display: flex; align-items: flex-start; gap: 6px; }
         .cb-row label { font-size: 13px; cursor: pointer; flex: 1; }
@@ -57,13 +57,13 @@
         .info-btn {
             display: inline-block; width: 18px; height: 18px; line-height: 18px;
             text-align: center; font-size: 11px; font-weight: bold; font-style: italic;
-            color: #1a73e8; border: 1px solid #1a73e8; border-radius: 50%;
+            color: #1b3a5c; border: 1px solid #1b3a5c; border-radius: 50%;
             cursor: pointer; flex-shrink: 0; user-select: none;
         }
-        .info-btn:hover { background: #1a73e8; color: white; }
+        .info-btn:hover { background: #1b3a5c; color: white; }
         .info-panel {
             display: none; font-size: 12px; color: #555;
-            background: #fafafa; border-left: 3px solid #1a73e8;
+            background: #fafafa; border-left: 3px solid #1b3a5c;
             padding: 8px 10px; margin: 4px 0 8px 22px; border-radius: 0 4px 4px 0;
         }
         .info-panel code { background: #eee; padding: 1px 4px; border-radius: 3px; font-size: 11px; }
@@ -75,10 +75,10 @@
             padding: 8px 18px; border-radius: 4px; border: none;
             cursor: pointer; font-weight: 500; font-size: 14px;
         }
-        button.primary { background: #1a73e8; color: white; }
-        button.primary:hover { background: #0d66da; }
-        button.success { background: #34a853; color: white; }
-        button.success:hover { background: #2d9249; }
+        button.primary { background: #1b3a5c; color: white; }
+        button.primary:hover { background: #142d47; }
+        button.success { background: #c89b3c; color: white; }
+        button.success:hover { background: #a67f2e; }
         button:disabled { background: #ccc; cursor: not-allowed; }
 
         /* Status */
@@ -86,9 +86,9 @@
             padding: 10px 12px; border-radius: 4px; font-size: 13px;
             margin-bottom: 14px; display: none; white-space: pre-line;
         }
-        .status-bar.success { display: block; background: #e6f4ea; color: #1e7e34; border: 1px solid #b7e1c6; }
+        .status-bar.success { display: block; background: #fdf8ec; color: #8a6914; border: 1px solid #d9c97c; }
         .status-bar.error { display: block; background: #fce8e6; color: #c5221f; border: 1px solid #f5c6c2; }
-        .status-bar.info { display: block; background: #e8f0fe; color: #1967d2; border: 1px solid #aecbfa; }
+        .status-bar.info { display: block; background: #f5f3ed; color: #1b3a5c; border: 1px solid #c9bfa0; }
 
         /* Conflict warning */
         .conflict-warn {
@@ -99,7 +99,7 @@
 </head>
 <body>
 <div class="container">
-    <h1>🧹 Beautify HTML Tool</h1>
+    <h1>Beautify HTML Tool</h1>
 
     <!-- PLATFORM -->
     <div class="platform-bar">
@@ -118,7 +118,7 @@
     <div class="groups-row">
         <!-- GROUP A: STYLE -->
         <div class="group-box style-group">
-            <h3>🎨 Nhóm A — Style</h3>
+            <h3>Nhóm A — Style</h3>
 
             <!-- A1 -->
             <div class="cb-row">
@@ -141,9 +141,9 @@
             <div class="info-panel" id="infoA2">
                 Tìm tất cả <code>&lt;a&gt;</code> có href <b>KHÔNG</b> chứa "phantichkinhte123" → wrap bằng <code>&lt;u&gt;</code>: <code>&lt;u&gt;&lt;a href="..."&gt;text&lt;/a&gt;&lt;/u&gt;</code>.<br>
                 Nếu đã có <code>&lt;u&gt;</code> bọc ngoài rồi thì bỏ qua.<br>
-                ⚠️ <b>Xung đột với A5</b> — không thể bật cùng lúc.
+                Xung đột với A5 — không thể bật cùng lúc.
             </div>
-            <div class="conflict-warn" id="warnA2">⚠ Xung đột: Không thể bật cùng A5</div>
+            <div class="conflict-warn" id="warnA2">Xung đột: Không thể bật cùng A5</div>
 
             <!-- A3 -->
             <div class="cb-row">
@@ -179,14 +179,14 @@
                 • Xóa thẻ <code>&lt;u&gt;</code> bọc quanh <code>&lt;a&gt;</code> (unwrap, giữ nội dung).<br>
                 • Xóa <code>text-decoration: underline</code> trong inline style.<br>
                 • Thêm <code>text-decoration: none</code> vào <code>&lt;a&gt;</code>.<br>
-                ⚠️ <b>Xung đột với A2</b> — không thể bật cùng lúc.
+                Xung đột với A2 — không thể bật cùng lúc.
             </div>
-            <div class="conflict-warn" id="warnA5">⚠ Xung đột: Không thể bật cùng A2</div>
+            <div class="conflict-warn" id="warnA5">Xung đột: Không thể bật cùng A2</div>
         </div>
 
         <!-- GROUP B: CLEAN -->
         <div class="group-box clean-group">
-            <h3>🧹 Nhóm B — Clean</h3>
+            <h3>Nhóm B — Clean</h3>
 
             <!-- B1 -->
             <div class="cb-row">
@@ -243,7 +243,7 @@
 
     <!-- BUTTONS -->
     <div class="btn-row">
-        <button class="primary" id="btnRun">▶ Chạy Beautify</button>
+        <button class="primary" id="btnRun">Chạy Beautify</button>
         <button style="background:#eee; color:#333;" onclick="selectAll()">Chọn tất cả</button>
         <button style="background:#eee; color:#333;" onclick="deselectAll()">Bỏ chọn</button>
     </div>
@@ -256,7 +256,7 @@
         <label for="outputHTML">HTML đầu ra:</label>
         <textarea id="outputHTML" placeholder="Kết quả sẽ hiển thị ở đây..." readonly></textarea>
     </div>
-    <button class="success" id="btnCopy" disabled>📋 Copy kết quả</button>
+    <button class="success" id="btnCopy" disabled>Copy kết quả</button>
 </div>
 
 <script>
@@ -630,7 +630,7 @@ function processA5(html) {
 document.getElementById('btnRun').addEventListener('click', function() {
     const input = document.getElementById('inputHTML').value;
     if (!input.trim()) {
-        showStatus('⚠ Chưa có HTML đầu vào.', 'error');
+        showStatus('Chưa có HTML đầu vào.', 'error');
         return;
     }
 
@@ -639,7 +639,7 @@ document.getElementById('btnRun').addEventListener('click', function() {
 
     // Conflict check
     if (a2 && a5) {
-        showStatus('❌ Lỗi xung đột: A2 (Gạch chân) và A5 (Xóa gạch chân) không thể bật cùng lúc. Vui lòng chọn một trong hai.', 'error');
+        showStatus('Lỗi xung đột: A2 (Gạch chân) và A5 (Xóa gạch chân) không thể bật cùng lúc. Vui lòng chọn một trong hai.', 'error');
         return;
     }
 
@@ -684,12 +684,12 @@ document.getElementById('btnRun').addEventListener('click', function() {
 
     // Build status message
     if (results.length === 0) {
-        showStatus('⚠ Chưa chọn tính năng nào. Tick ít nhất một checkbox rồi chạy lại.', 'info');
+        showStatus('Chưa chọn tính năng nào. Tick ít nhất một checkbox rồi chạy lại.', 'info');
         return;
     }
 
     const total = results.reduce((s, r) => s + r.count, 0);
-    let msg = '✅ Hoàn tất! Tổng thay đổi: ' + total + '\n';
+    let msg = 'Hoàn tất! Tổng thay đổi: ' + total + '\n';
     results.forEach(r => {
         msg += '   • ' + r.label + ': ' + r.count + ' thay đổi\n';
     });
@@ -703,10 +703,10 @@ document.getElementById('btnCopy').addEventListener('click', function() {
     out.select();
     out.setSelectionRange(0, 99999);
     navigator.clipboard.writeText(out.value).then(function() {
-        showStatus('📋 Đã copy vào clipboard!', 'success');
+        showStatus('Đã copy vào clipboard!', 'success');
     }).catch(function() {
         document.execCommand('copy');
-        showStatus('📋 Đã copy vào clipboard!', 'success');
+        showStatus('Đã copy vào clipboard!', 'success');
     });
 });
 </script>

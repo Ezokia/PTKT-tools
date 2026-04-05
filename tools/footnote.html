@@ -26,18 +26,24 @@
             font-weight: bold;
             margin-bottom: 16px;
         }
-        .instruction-box {
-            background-color: #ebf5ff;
+        details.instruction-box {
+            background-color: #f5f3ed;
             padding: 12px;
             border-radius: 6px;
             margin-bottom: 16px;
         }
-        .instruction-box p {
+        details.instruction-box summary {
+            cursor: pointer;
+            font-weight: bold;
             font-size: 14px;
-            margin-bottom: 8px;
         }
-        .instruction-box ul {
+        details.instruction-box p,
+        details.instruction-box ul {
             font-size: 14px;
+            margin-top: 8px;
+            margin-bottom: 4px;
+        }
+        details.instruction-box ul {
             margin-left: 20px;
         }
         .form-group {
@@ -81,18 +87,18 @@
             margin-right: 8px;
         }
         button.primary {
-            background-color: #1a73e8;
+            background-color: #1b3a5c;
             color: white;
         }
         button.primary:hover {
-            background-color: #0d66da;
+            background-color: #142d47;
         }
         button.success {
-            background-color: #34a853;
+            background-color: #c89b3c;
             color: white;
         }
         button.success:hover {
-            background-color: #2d9249;
+            background-color: #a67f2e;
         }
         button:disabled {
             background-color: #ccc;
@@ -101,8 +107,8 @@
         .status {
             padding: 8px;
             border-radius: 4px;
-            background-color: #e8f0fe;
-            color: #1967d2;
+            background-color: #f5f3ed;
+            color: #1b3a5c;
             margin-bottom: 16px;
             display: none;
         }
@@ -112,15 +118,15 @@
     <div class="container">
         <h1>PTKT Footnote HTML Transformer</h1>
         
-        <div class="instruction-box">
-            <p><strong>Instructions:</strong> Use {n} as a placeholder for the footnote number in your format patterns.</p>
-            <p><strong>This transformer processes both body and endnote formats in a single operation:</strong></p>
+        <details class="instruction-box">
+            <summary>Hướng dẫn sử dụng (click để mở)</summary>
+            <p>Dùng <code>{n}</code> làm placeholder cho số thứ tự footnote trong các ô format.</p>
+            <p><strong>Tool xử lý đồng thời cả body và endnote:</strong></p>
             <ul>
-                <li>Body text footnotes will be transformed into hyperlinks pointing to endnotes</li>
-                <li>Endnote footnotes will be transformed into hyperlinks pointing back to references</li>
+                <li>Footnote trong body sẽ được chuyển thành hyperlink trỏ đến endnote tương ứng</li>
+                <li>Footnote trong endnote sẽ được chuyển thành hyperlink trỏ ngược về vị trí trích dẫn</li>
             </ul>
-            <p><strong><a href="https://html-cleaner.com/">Text to HTML tool</a></strong> for converting text to HTML and editing</p>
-        </div>
+        </details>
         
         <div class="flex-row">
             <div class="flex-column">
