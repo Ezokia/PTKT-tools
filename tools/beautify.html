@@ -407,12 +407,12 @@ function processB1(html) {
         return '<span' + pre + 'style="' + style + '"' + post + '>' + content + '</span>';
     });
 
-    // Phase 2: Remove all font-* properties from ALL inline styles
+    // Phase 2: Remove font-family/weight/style/variant (keep font-size for headings)
     html = html.replace(/style="([^"]*)"/gi, function(m, style) {
         const original = style;
         let cleaned = style;
         cleaned = cleaned.replace(/font-family:\s*[^;]*;?\s*/gi, '');
-        cleaned = cleaned.replace(/font-size:\s*[^;]*;?\s*/gi, '');
+        // KEEP font-size for heading preservation
         cleaned = cleaned.replace(/font-weight:\s*[^;]*;?\s*/gi, '');
         cleaned = cleaned.replace(/font-style:\s*[^;]*;?\s*/gi, '');
         cleaned = cleaned.replace(/font-variant:\s*[^;]*;?\s*/gi, '');
