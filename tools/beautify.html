@@ -226,6 +226,19 @@
                 • Xóa attribute <code>id</code> trên mọi element.
             </div>
 
+            <!-- B5 -->
+            <div class="cb-row">
+                <input type="checkbox" id="cbB5">
+                <label for="cbB5">B5 — Xóa background trắng</label>
+                <span class="info-btn" onclick="toggleInfo('infoB5')">i</span>
+            </div>
+            <div class="info-panel" id="infoB5">
+                Xóa các style <code>background</code> / <code>background-color</code> có giá trị trắng hoặc gần trắng:<br>
+                • <code>white</code>, <code>#fff</code>, <code>#ffffff</code><br>
+                • <code>rgb(N, N, N)</code> với mỗi kênh &ge; 250 (ví dụ: <code>rgb(254, 254, 254)</code>)<br>
+                Áp dụng lên mọi inline style. <b>Không</b> xóa background có màu khác.
+            </div>
+
             <!-- B4 -->
             <div class="cb-row">
                 <input type="checkbox" id="cbB4">
@@ -435,6 +448,39 @@ function processB2(html) {
     });
 
     return { html, count, label: 'B2 — Xóa layout styles' };
+}
+
+function isWhiteBackground(value) {
+    value = value.trim().toLowerCase();
+    if (value === 'white' || value === '#fff' || value === '#ffffff') return true;
+    // rgb(N, N, N) where each channel >= 250
+    const m = value.match(/^rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/);
+    if (m && parseInt(m[1]) >= 250 && parseInt(m[2]) >= 250 && parseInt(m[3]) >= 250) return true;
+    return false;
+}
+
+function processB5(html) {
+    let count = 0;
+
+    html = html.replace(/style="([^"]*)"/gi, function(m, style) {
+        const obj = parseStyle(style);
+        let changed = false;
+
+        if (obj['background-color'] !== undefined && isWhiteBackground(obj['background-color'])) {
+            delete obj['background-color'];
+            changed = true;
+        }
+        if (obj['background'] !== undefined && isWhiteBackground(obj['background'])) {
+            delete obj['background'];
+            changed = true;
+        }
+
+        if (!changed) return m;
+        count++;
+        return 'style="' + buildStyle(obj) + '"';
+    });
+
+    return { html, count, label: 'B5 — Xóa background trắng' };
 }
 
 function processB4(html) {
@@ -656,6 +702,9 @@ document.getElementById('btnRun').addEventListener('click', function() {
     }
     if (document.getElementById('cbB2').checked) {
         const r = processB2(html); html = r.html; results.push(r);
+    }
+    if (document.getElementById('cbB5').checked) {
+        const r = processB5(html); html = r.html; results.push(r);
     }
     if (document.getElementById('cbB4').checked) {
         const r = processB4(html); html = r.html; results.push(r);
