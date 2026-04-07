@@ -448,9 +448,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (fontSize) classList.push('has-' + fontSize + '-font-size');
         classStr = classList.length > 0 ? ' class="' + classList.join(' ') + '"' : '';
 
-        // Build inline style
+        // Build inline style — skip zero padding (WP block parser rejects padding-left: 0*)
         let styles = [];
-        if (paddingLeft) styles.push('padding-left: ' + paddingLeft);
+        if (paddingLeft && !/^0[a-z%]*$/i.test(paddingLeft.trim())) styles.push('padding-left: ' + paddingLeft);
         styleStr = styles.length > 0 ? ' style="' + styles.join('; ') + '"' : '';
 
         return `<!-- wp:paragraph${attrStr} -->\n<p${classStr}${styleStr}>${innerHtml}</p>\n<!-- /wp:paragraph -->`;
