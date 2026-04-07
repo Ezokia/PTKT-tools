@@ -228,14 +228,8 @@ document.addEventListener('DOMContentLoaded', function() {
         // Remove remaining empty spans
         html = html.replace(/<span>\s*<\/span>/gi, '');
         html = html.replace(/<span\s+style="\s*">\s*<\/span>/gi, '');
-        // Remove spans that only have color style
-        prev = '';
-        max = 10;
-        while (html !== prev && max-- > 0) {
-            prev = html;
-            html = html.replace(/<span\s+style="\s*color:[^"]*"[^>]*>([\s\S]*?)<\/span>/gi, '$1');
-        }
-        
+        // KEEP spans with color style — preserve text color
+
         return html;
     }
 
@@ -305,12 +299,13 @@ document.addEventListener('DOMContentLoaded', function() {
             html = html.replace(/<span\s+style="[^"]*font-size:[^"]*"[^>]*>([\s\S]*?)<\/span>/gi, '$1');
         }
 
-        // Remove any remaining span wrappers that only have style (no semantic meaning)
+        // Remove decorative span wrappers (but keep color spans)
         prev = '';
         max = 10;
         while (html !== prev && max-- > 0) {
             prev = html;
-            html = html.replace(/<span\s+style="[^"]*">([\s\S]*?)<\/span>/gi, '$1');
+            // Strip spans with style EXCEPT color-only spans
+            html = html.replace(/<span\s+style="(?!.*color)[^"]*">([\s\S]*?)<\/span>/gi, '$1');
         }
         // Remove bare spans with no attributes
         prev = '';
@@ -448,10 +443,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (fontSize) classList.push('has-' + fontSize + '-font-size');
         classStr = classList.length > 0 ? ' class="' + classList.join(' ') + '"' : '';
 
-        // Build inline style — skip zero padding (WP block parser rejects padding-left: 0*)
-        let styles = [];
-        if (paddingLeft && !/^0[a-z%]*$/i.test(paddingLeft.trim())) styles.push('padding-left: ' + paddingLeft);
-        styleStr = styles.length > 0 ? ' style="' + styles.join('; ') + '"' : '';
+        // padding-left removed entirely — WP block parser doesn't handle it correctly
 
         return `<!-- wp:paragraph${attrStr} -->\n<p${classStr}${styleStr}>${innerHtml}</p>\n<!-- /wp:paragraph -->`;
     }
