@@ -286,12 +286,31 @@ document.addEventListener('DOMContentLoaded', function() {
     // CLEAN INNER HTML OF A PARAGRAPH
     // ========================
     function cleanInnerHtml(el) {
+        // Step 0: DOM-based cleanup — avoids regex nesting bugs
+        // Remove empty spans (no text content, no img)
+        let domChanged = true;
+        while (domChanged) {
+            domChanged = false;
+            el.querySelectorAll('span').forEach(span => {
+                if (!span.textContent.trim() && !span.querySelector('img')) {
+                    span.remove();
+                    domChanged = true;
+                }
+            });
+            // Unwrap bare spans (no style, no class)
+            el.querySelectorAll('span:not([style]):not([class])').forEach(span => {
+                while (span.firstChild) span.parentNode.insertBefore(span.firstChild, span);
+                span.remove();
+                domChanged = true;
+            });
+        }
+
         let html = el.innerHTML;
 
         // Strip font-family spans
         html = stripDecorativeSpans(html);
 
-        // Remove font-size spans (but we've already checked for heading detection)
+        // Remove font-size spans
         let prev = '';
         let max = 10;
         while (html !== prev && max-- > 0) {
@@ -299,24 +318,22 @@ document.addEventListener('DOMContentLoaded', function() {
             html = html.replace(/<span\s+style="[^"]*font-size:[^"]*"[^>]*>([\s\S]*?)<\/span>/gi, '$1');
         }
 
-        // Remove decorative span wrappers (but keep color spans)
+        // Remove decorative span wrappers (keep color spans)
         prev = '';
         max = 10;
         while (html !== prev && max-- > 0) {
             prev = html;
-            // Strip spans with style EXCEPT color-only spans
             html = html.replace(/<span\s+style="(?!.*color)[^"]*">([\s\S]*?)<\/span>/gi, '$1');
         }
-        // Remove bare spans with no attributes
-        prev = '';
-        max = 10;
-        while (html !== prev && max-- > 0) {
-            prev = html;
-            html = html.replace(/<span>([\s\S]*?)<\/span>/gi, '$1');
-        }
+
+        // Remove any remaining empty spans (including empty color spans left after string processing)
+        html = html.replace(/<span[^>]*>\s*<\/span>/gi, '');
 
         // Convert b/i tags
         html = convertInlineTags(html);
+
+        // Fix mid-sentence line breaks (Word/Blogger \n causes <br> in WordPress)
+        html = html.replace(/\r?\n/g, ' ').replace(/ {2,}/g, ' ');
 
         // Remove &nbsp; at beginning/end, convert mid-text &nbsp; to space
         html = html.replace(/&nbsp;/g, '\u00a0');
@@ -325,7 +342,7 @@ document.addEventListener('DOMContentLoaded', function() {
         html = html.trim();
 
         // Remove trailing <br> or newlines
-        html = html.replace(/(<br\s*\/?>|\n|\r)+$/gi, '');
+        html = html.replace(/(<br\s*\/?>)+$/gi, '');
 
         return html;
     }
