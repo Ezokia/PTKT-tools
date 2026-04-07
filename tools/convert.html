@@ -286,47 +286,37 @@ document.addEventListener('DOMContentLoaded', function() {
     // CLEAN INNER HTML OF A PARAGRAPH
     // ========================
     function cleanInnerHtml(el) {
-        // Step 0: DOM-based cleanup — avoids regex nesting bugs
-        // Remove empty spans (no text content, no img)
+        // DOM-based span cleanup — avoids regex nesting bugs entirely
+        // Iterate until stable: each pass may expose new spans to clean
         let domChanged = true;
         while (domChanged) {
             domChanged = false;
+
+            // 1. Remove empty spans (no text, no img)
             el.querySelectorAll('span').forEach(span => {
                 if (!span.textContent.trim() && !span.querySelector('img')) {
                     span.remove();
                     domChanged = true;
                 }
             });
-            // Unwrap bare spans (no style, no class)
-            el.querySelectorAll('span:not([style]):not([class])').forEach(span => {
-                while (span.firstChild) span.parentNode.insertBefore(span.firstChild, span);
-                span.remove();
-                domChanged = true;
+
+            // 2. Unwrap spans with NO color in style (font-family, font-size, mso-*, etc.)
+            //    Also unwrap bare spans (no style, no class)
+            el.querySelectorAll('span').forEach(span => {
+                const style = span.getAttribute('style') || '';
+                const hasClass = span.hasAttribute('class');
+                const hasColor = /color\s*:/i.test(style);
+                if (!hasColor && !hasClass) {
+                    while (span.firstChild) span.parentNode.insertBefore(span.firstChild, span);
+                    span.remove();
+                    domChanged = true;
+                }
             });
         }
 
         let html = el.innerHTML;
 
-        // Strip font-family spans
-        html = stripDecorativeSpans(html);
-
-        // Remove font-size spans
-        let prev = '';
-        let max = 10;
-        while (html !== prev && max-- > 0) {
-            prev = html;
-            html = html.replace(/<span\s+style="[^"]*font-size:[^"]*"[^>]*>([\s\S]*?)<\/span>/gi, '$1');
-        }
-
-        // Remove decorative span wrappers (keep color spans)
-        prev = '';
-        max = 10;
-        while (html !== prev && max-- > 0) {
-            prev = html;
-            html = html.replace(/<span\s+style="(?!.*color)[^"]*">([\s\S]*?)<\/span>/gi, '$1');
-        }
-
-        // Remove any remaining empty spans (including empty color spans left after string processing)
+        // Remove any remaining empty spans (safety net after string ops)
         html = html.replace(/<span[^>]*>\s*<\/span>/gi, '');
 
         // Convert b/i tags
