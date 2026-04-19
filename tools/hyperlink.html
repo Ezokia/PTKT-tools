@@ -490,6 +490,18 @@
                         continue;
                     }
 
+                    // Count <a> depth in segment — catches matches inside existing links
+                    var aDepth = 0;
+                    var aTagRe = /<(\/?)a[\s>\/]/gi;
+                    var aTagMatch;
+                    while ((aTagMatch = aTagRe.exec(segment)) !== null) {
+                        aDepth += aTagMatch[1] === '/' ? -1 : 1;
+                    }
+                    if (aDepth > 0) {
+                        i = matchStart + 1;
+                        continue;
+                    }
+
                     var originalText = html.slice(matchStart, matchEnd);
                     var linkTag = '<a href="' + url + '" style="color:#C00000;text-decoration:none;">' + originalText + '</a>';
 
