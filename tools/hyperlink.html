@@ -417,10 +417,35 @@
             showStatus('Done — ' + linked + ' linked.', 'success');
         });
 
+        // --- Fix phantichkinhte123 domain to match platform ---
+        function fixInternalDomains(html, platform) {
+            var fixed = [];
+            var comDomain = 'phantichkinhte123.com';
+            var wpDomain = 'phantichkinhte123.wordpress.com';
+            var correctDomain = platform === 'com' ? comDomain : wpDomain;
+            var wrongDomain   = platform === 'com' ? wpDomain  : comDomain;
+
+            html = html.replace(/href="([^"]*)"/gi, function(m, href) {
+                if (href.indexOf('phantichkinhte123') === -1) return m;
+                if (href.indexOf(wrongDomain) !== -1) {
+                    var newHref = href.replace(wrongDomain, correctDomain);
+                    fixed.push({ from: href, to: newHref });
+                    return 'href="' + newHref + '"';
+                }
+                return m;
+            });
+
+            return { html: html, fixed: fixed };
+        }
+
         // --- Core processing ---
         function processHtml(html, data, platform) {
             var usedUrls = new Set();
             var report = [];
+
+            var domainFix = fixInternalDomains(html, platform);
+            html = domainFix.html;
+            var domainFixed = domainFix.fixed;
 
             for (var idx = 0; idx < data.length; idx++) {
                 var entry = data[idx];
@@ -448,7 +473,7 @@
                 }
             }
 
-            return { html: html, report: report };
+            return { html: html, report: report, domainFixed: domainFixed };
         }
 
         function insertLink(html, anchor, url) {

@@ -203,7 +203,7 @@
             <!-- B3 -->
             <div class="cb-row">
                 <input type="checkbox" id="cbB3">
-                <label for="cbB3">B3 — Xóa Word/Blogger rác</label>
+                <label for="cbB3">B3 — Xóa element rác (Word, Blogger, Wordpress)</label>
                 <span class="info-btn" onclick="toggleInfo('infoB3')">i</span>
             </div>
             <div class="info-panel" id="infoB3">
@@ -370,7 +370,19 @@ function processB3(html) {
     html = html.replace(/\s+id="[^"]*"/gi, function(m) { count++; return ''; });
     html = html.replace(/\s+id='[^']*'/gi, function(m) { count++; return ''; });
 
-    return { html, count, label: 'B3 — Xóa rác Word/Blogger' };
+    // 5. Replace isolated &nbsp; with regular space; warn on consecutive sequences
+    const PLACEHOLDER = '\x00NBSP_SEQ\x00';
+    const consecutiveMatches = html.match(/(?:&nbsp;){2,}/gi) || [];
+    const consecutiveCount = consecutiveMatches.length;
+    html = html.replace(/(?:&nbsp;){2,}/gi, PLACEHOLDER);
+    html = html.replace(/&nbsp;/gi, function() { count++; return ' '; });
+    html = html.replace(new RegExp(PLACEHOLDER.replace(/\x00/g, '\\x00'), 'g'), function(m) { return consecutiveMatches.shift() || m; });
+
+    const warning = consecutiveCount > 0
+        ? '⚠ Phát hiện ' + consecutiveCount + ' cụm &nbsp; liên tiếp — kiểm tra thủ công'
+        : null;
+
+    return { html, count, label: 'B3 — Xóa element rác', warning };
 }
 
 function processB1(html) {
@@ -716,9 +728,12 @@ document.getElementById('btnRun').addEventListener('click', function() {
 
     const total = results.reduce((s, r) => s + r.count, 0);
     let msg = 'Hoàn tất! Tổng thay đổi: ' + total + '\n';
+    const warnings = [];
     results.forEach(r => {
         msg += '   • ' + r.label + ': ' + r.count + ' thay đổi\n';
+        if (r.warning) warnings.push(r.warning);
     });
+    if (warnings.length) msg += '\n' + warnings.join('\n') + '\n';
     msg += '\nPlatform: ' + (platform === 'blogger' ? 'Blogger' : 'WordPress');
     showStatus(msg, 'success');
 });
