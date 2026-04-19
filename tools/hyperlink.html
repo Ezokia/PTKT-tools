@@ -461,6 +461,13 @@
 
             while (i < html.length) {
                 if (html[i] === '<') {
+                    // Skip HTML comments
+                    if (lower.slice(i, i + 4) === '<!--') {
+                        var commentEnd = html.indexOf('-->', i);
+                        i = commentEnd !== -1 ? commentEnd + 3 : html.length;
+                        continue;
+                    }
+
                     var tagMatch = lower.slice(i).match(/^<(\/?)([a-z][a-z0-9]*)/);
                     if (tagMatch) {
                         var isClose = tagMatch[1] === '/';
@@ -528,13 +535,17 @@
 
                     // Count <a> depth in segment — catches matches inside existing links
                     var aDepth = 0;
+                    var aOpenStack = [];
                     var aTagRe = /<(\/?)a[\s>\/]/gi;
                     var aTagMatch;
                     while ((aTagMatch = aTagRe.exec(segment)) !== null) {
-                        aDepth += aTagMatch[1] === '/' ? -1 : 1;
+                        if (aTagMatch[1] === '/') { if (aOpenStack.length) aOpenStack.pop(); }
+                        else aOpenStack.push(i + aTagMatch.index);
                     }
+                    aDepth = aOpenStack.length;
                     if (aDepth > 0) {
-                        i = matchStart + 1;
+                        // Jump to the first unclosed <a> so tag walker can process it
+                        i = aOpenStack[0];
                         continue;
                     }
 
