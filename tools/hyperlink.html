@@ -417,63 +417,37 @@
             showStatus('Done — ' + linked + ' linked.', 'success');
         });
 
-        // --- Fix phantichkinhte123 domain to match platform ---
-        function fixInternalDomains(html, platform) {
-            var fixed = [];
-            var comDomain = 'phantichkinhte123.com';
-            var wpDomain = 'phantichkinhte123.wordpress.com';
-            var correctDomain = platform === 'com' ? comDomain : wpDomain;
-            var wrongDomain   = platform === 'com' ? wpDomain  : comDomain;
-
-            html = html.replace(/href="([^"]*)"/gi, function(m, href) {
-                if (href.indexOf('phantichkinhte123') === -1) return m;
-                if (href.indexOf(wrongDomain) !== -1) {
-                    var newHref = href.replace(wrongDomain, correctDomain);
-                    fixed.push({ from: href, to: newHref });
-                    return 'href="' + newHref + '"';
-                }
-                return m;
-            });
-
-            return { html: html, fixed: fixed };
-        }
-
         // --- Core processing ---
         function processHtml(html, data, platform) {
             var usedUrls = new Set();
             var report = [];
-
-            var domainFix = fixInternalDomains(html, platform);
-            html = domainFix.html;
-            var domainFixed = domainFix.fixed;
 
             for (var idx = 0; idx < data.length; idx++) {
                 var entry = data[idx];
                 var anchor = entry.anchor;
                 var url = entry[platform];
 
-                if (!anchor || !url) {
-                    report.push({ anchor: anchor || '(empty)', status: 'skipped', reason: 'Missing anchor or URL' });
-                    continue;
-                }
+                if (!anchor) continue;
 
-                if (usedUrls.has(url)) {
+                if (url && usedUrls.has(url)) {
                     report.push({ anchor: anchor, status: 'skipped', reason: 'URL da duoc dung roi' });
                     continue;
                 }
 
-                var res = insertLink(html, anchor, url);
+                var res = insertLink(html, anchor, url || '');
 
                 if (res.found) {
                     html = res.newHtml;
-                    usedUrls.add(url);
+                    if (url) usedUrls.add(url);
                     report.push({ anchor: anchor, linkedText: res.linkedText, status: 'linked', url: url });
+                } else if (res.noUrl) {
+                    report.push({ anchor: anchor, status: 'no-url', reason: 'Tim thay trong PTKT link nhung URL trong JSON bi trong' });
                 } else {
-                    report.push({ anchor: anchor, status: 'skipped', reason: 'Anchor text khong tim thay trong HTML' });
+                    // not found anywhere — skip silently
                 }
             }
 
-            return { html: html, report: report, domainFixed: domainFixed };
+            return { html: html, report: report };
         }
 
         function insertLink(html, anchor, url) {
@@ -482,6 +456,8 @@
 
             var i = 0;
             var insideAnchor = 0;
+            var insidePtktAnchor = false;
+            var ptktAnchorStart = -1;
 
             while (i < html.length) {
                 if (html[i] === '<') {
@@ -489,12 +465,47 @@
                     if (tagMatch) {
                         var isClose = tagMatch[1] === '/';
                         var tagName = tagMatch[2];
-                        if (tagName === 'a') {
-                            insideAnchor += isClose ? -1 : 1;
-                            if (insideAnchor < 0) insideAnchor = 0;
-                        }
                         var tagEnd = html.indexOf('>', i);
                         if (tagEnd === -1) break;
+
+                        if (tagName === 'a') {
+                            if (!isClose) {
+                                var fullTag = html.slice(i, tagEnd + 1);
+                                var hrefMatch = fullTag.match(/href="([^"]*)"/i);
+                                var href = hrefMatch ? hrefMatch[1] : '';
+                                if (href.indexOf('phantichkinhte123') !== -1) {
+                                    insidePtktAnchor = true;
+                                    ptktAnchorStart = i;
+                                }
+                                insideAnchor++;
+                            } else {
+                                insideAnchor--;
+                                if (insideAnchor < 0) insideAnchor = 0;
+                                if (insidePtktAnchor && insideAnchor === 0) {
+                                    // closing the ptkt anchor — search for anchor text within it
+                                    var ptktAnchorEnd = tagEnd + 1;
+                                    var innerHtml = html.slice(ptktAnchorStart, ptktAnchorEnd);
+                                    var innerLower = innerHtml.toLowerCase();
+                                    var matchPos = innerLower.indexOf(anchorLower);
+                                    if (matchPos !== -1) {
+                                        var matchedText = innerHtml.slice(matchPos, matchPos + anchor.length);
+                                        if (!url) {
+                                            insidePtktAnchor = false;
+                                            ptktAnchorStart = -1;
+                                            return { newHtml: html, found: false, linkedText: matchedText, noUrl: true };
+                                        }
+                                        // Replace the entire <a>...</a> span
+                                        var innerContent = html.slice(ptktAnchorStart, ptktAnchorEnd);
+                                        var innerBody = innerContent.replace(/^<a[^>]*>/i, '').replace(/<\/a>$/i, '');
+                                        var newTag = '<a href="' + url + '" style="color:#C00000;text-decoration:none;">' + innerBody + '</a>';
+                                        var newHtml = html.slice(0, ptktAnchorStart) + newTag + html.slice(ptktAnchorEnd);
+                                        return { newHtml: newHtml, found: true, linkedText: matchedText };
+                                    }
+                                    insidePtktAnchor = false;
+                                    ptktAnchorStart = -1;
+                                }
+                            }
+                        }
                         i = tagEnd + 1;
                         continue;
                     }
@@ -540,22 +551,33 @@
             return { newHtml: html, found: false, linkedText: null };
         }
 
-        // --- Render report: only show linked items ---
+        // --- Render report ---
         function renderReport(report) {
             var linked = report.filter(function (r) { return r.status === 'linked'; });
+            var noUrl  = report.filter(function (r) { return r.status === 'no-url'; });
 
-            if (!linked.length) {
+            if (!linked.length && !noUrl.length) {
                 reportBox.style.display = 'none';
                 return;
             }
 
             reportBox.style.display = 'block';
             var html = '';
-            html += '<div style="margin-bottom:8px;"><strong class="report-linked">Linked (' + linked.length + ')</strong></div>';
-            for (var i = 0; i < linked.length; i++) {
-                var r = linked[i];
-                html += '<div class="report-item report-linked">' + escHtml(r.linkedText || r.anchor) + '</div>';
+
+            if (linked.length) {
+                html += '<div style="margin-bottom:8px;"><strong class="report-linked">Linked (' + linked.length + ')</strong></div>';
+                for (var i = 0; i < linked.length; i++) {
+                    html += '<div class="report-item report-linked">' + escHtml(linked[i].linkedText || linked[i].anchor) + '</div>';
+                }
             }
+
+            if (noUrl.length) {
+                html += '<div style="margin-top:10px;margin-bottom:6px;"><strong style="color:#b45309;">⚠ Thiếu URL trong JSON (' + noUrl.length + ')</strong></div>';
+                for (var j = 0; j < noUrl.length; j++) {
+                    html += '<div class="report-item" style="color:#b45309;">' + escHtml(noUrl[j].anchor) + '</div>';
+                }
+            }
+
             reportContent.innerHTML = html;
         }
 
