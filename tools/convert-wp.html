@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WordPress → Blogger Converter</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.5;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 24px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 16px;
+        }
+        .instruction-box {
+            background-color: #f5f3ed;
+            border-radius: 6px;
+            margin-bottom: 16px;
+        }
+        .instruction-box summary {
+            padding: 12px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .instruction-box p,
+        .instruction-box ul {
+            font-size: 14px;
+            padding: 0 12px 12px;
+            margin: 0;
+        }
+        .instruction-box ul {
+            margin-left: 20px;
+        }
+        .form-group {
+            margin-bottom: 16px;
+        }
+        label {
+            display: block;
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+        textarea {
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 8px 12px;
+            width: 100%;
+            box-sizing: border-box;
+            font-family: monospace;
+            font-size: 13px;
+            resize: vertical;
+        }
+        #inputText { height: 200px; }
+        #outputText { height: 300px; }
+        button {
+            padding: 8px 16px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            margin-right: 8px;
+        }
+        button.primary {
+            background-color: #1b3a5c;
+            color: white;
+        }
+        button.primary:hover {
+            background-color: #142d47;
+        }
+        button.success {
+            background-color: #c89b3c;
+            color: white;
+        }
+        button.success:hover {
+            background-color: #a67f2e;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            padding: 8px;
+            border-radius: 4px;
+            background-color: #f5f3ed;
+            color: #1b3a5c;
+            margin-bottom: 16px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>WordPress → Blogger Converter</h1>
+
+    <details class="instruction-box">
+        <summary>Xem chi tiết chức năng converter</summary>
+        <ul>
+            <li>Heading (fontSize large) → &lt;h1&gt; với Verdana, x-large, bold</li>
+            <li>Heading (không có fontSize) → &lt;h2&gt;/&lt;h3&gt; với Verdana, bold</li>
+            <li>Paragraph → &lt;p class="MsoNormal"&gt; với Verdana span</li>
+            <li>Image có caption → &lt;table class="tr-caption-container"&gt;</li>
+            <li>Image float left (author photo) → &lt;div class="separator"&gt; float left</li>
+            <li>Image thường → &lt;div class="separator"&gt; căn giữa</li>
+            <li>YouTube embed → &lt;iframe&gt; trong &lt;div class="separator"&gt;</li>
+            <li>&lt;!--more--&gt; → giữ nguyên</li>
+            <li>Separator → &lt;hr&gt;</li>
+            <li>List → &lt;ul&gt;/&lt;ol&gt; với Verdana spans</li>
+            <li>&lt;strong&gt; → &lt;b&gt;, &lt;em&gt; → &lt;i&gt;</li>
+        </ul>
+    </details>
+
+    <div class="form-group">
+        <label for="inputText">Input HTML (WordPress Block):</label>
+        <textarea id="inputText" placeholder="Paste WordPress Block HTML vào đây..."></textarea>
+    </div>
+
+    <button id="transformBtn" class="primary">Convert to Blogger</button>
+
+    <div id="statusMessage" class="status"></div>
+
+    <div class="form-group">
+        <label for="outputText">Output HTML (Blogger):</label>
+        <textarea id="outputText" placeholder="Blogger HTML sẽ xuất hiện ở đây..." readonly></textarea>
+    </div>
+
+    <button id="copyBtn" class="success" disabled>Copy to Clipboard</button>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const inputText = document.getElementById('inputText');
+    const outputText = document.getElementById('outputText');
+    const statusMessage = document.getElementById('statusMessage');
+    const transformBtn = document.getElementById('transformBtn');
+    const copyBtn = document.getElementById('copyBtn');
+
+    let stats = { headings: 0, paragraphs: 0, images: 0, videos: 0, more: 0, separators: 0, lists: 0 };
+
+    function showStatus(msg) {
+        statusMessage.textContent = msg;
+        statusMessage.style.display = 'block';
+    }
+
+    // ========================
+    // PARSE WP BLOCK COMMENTS
+    // ========================
+    function tryParseJson(str) {
+        if (!str) return {};
+        try { return JSON.parse(str); } catch (e) { return {}; }
+    }
+
+    function parseWpBlocks(html) {
+        const blocks = [];
+        // Match <!-- wp:name {json} -->content<!-- /wp:name --> or self-closing <!-- wp:name {json} /-->
+        const regex = /<!-- wp:([\w:/-]+)(?:\s+(\{.+?\}))?\s*-->([\s\S]*?)<!-- \/wp:\1 -->|<!-- wp:([\w:/-]+)(?:\s+(\{.+?\}))?\s*\/-->/g;
+        let match;
+        while ((match = regex.exec(html)) !== null) {
+            if (match[1]) {
+                blocks.push({ name: match[1], attrs: tryParseJson(match[2]), content: match[3].trim() });
+            } else {
+                blocks.push({ name: match[4], attrs: tryParseJson(match[5]), content: '' });
+            }
+        }
+        return blocks;
+    }
+
+    // ========================
+    // ATTRIBUTE HELPERS
+    // ========================
+    function getTextAlign(attrs) {
+        return (attrs.style && attrs.style.typography && attrs.style.typography.textAlign) || '';
+    }
+
+    function wpFontSizeToBlogger(fontSize) {
+        const map = { large: 'x-large', medium: 'medium', small: 'small', 'x-large': 'x-large' };
+        return map[fontSize] || '';
+    }
+
+    function extractYouTubeId(url) {
+        const match = url.match(/youtu\.be\/([a-zA-Z0-9_-]+)|youtube\.com\/embed\/([a-zA-Z0-9_-]+)|[?&]v=([a-zA-Z0-9_-]+)/);
+        return match ? (match[1] || match[2] || match[3]) : null;
+    }
+
+    // Strip WP image resize query params (?w=NNN)
+    function cleanImgUrl(src) {
+        return src.replace(/\?w=\d+(&[^"]*)?/, '');
+    }
+
+    // ========================
+    // INNER HTML CONVERSION
+    // Convert strong→b, em→i, strip WP classes from img
+    // ========================
+    function convertInnerHtml(html) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString('<div>' + html + '</div>', 'text/html');
+        const root = doc.querySelector('div');
+
+        // strong → b
+        root.querySelectorAll('strong').forEach(el => {
+            const b = doc.createElement('b');
+            b.innerHTML = el.innerHTML;
+            el.replaceWith(b);
+        });
+
+        // em → i
+        root.querySelectorAll('em').forEach(el => {
+            const i = doc.createElement('i');
+            i.innerHTML = el.innerHTML;
+            el.replaceWith(i);
+        });
+
+        // Remove WP classes from img
+        root.querySelectorAll('img').forEach(img => {
+            img.removeAttribute('class');
+        });
+
+        // Remove WP classes from p, figure, figcaption
+        root.querySelectorAll('p, figure, figcaption').forEach(el => {
+            el.removeAttribute('class');
+        });
+
+        return root.innerHTML;
+    }
+
+    // Wrap content in a single Verdana span
+    function wrapVerdana(html, extraStyle) {
+        const style = 'font-family: verdana;' + (extraStyle ? ' ' + extraStyle : '');
+        return `<span style="${style}">${html}</span>`;
+    }
+
+    // ========================
+    // BLOCK BUILDERS
+    // ========================
+    function buildHeading(innerHtml, level, textAlign, bloggerFontSize) {
+        const styleAttr = textAlign ? ` style="text-align: ${textAlign};"` : '';
+        let content = convertInnerHtml(innerHtml);
+        // Strip existing b/strong to re-wrap cleanly
+        content = content.replace(/<\/?(b|strong)>/gi, '');
+        const verdanaStyle = bloggerFontSize ? `font-size: ${bloggerFontSize};` : '';
+        content = `<b>${wrapVerdana(content, verdanaStyle)}</b>`;
+        return `<h${level}${styleAttr}>${content}</h${level}>`;
+    }
+
+    function buildBoldParagraph(innerHtml, textAlign) {
+        const styleAttr = textAlign ? ` style="text-align: ${textAlign};"` : ' style="text-align: justify;"';
+        let content = convertInnerHtml(innerHtml);
+        content = content.replace(/<\/?(b|strong)>/gi, '');
+        content = `<b>${wrapVerdana(content)}</b>`;
+        return `<p class="MsoNormal"${styleAttr}>${content}</p>`;
+    }
+
+    function buildParagraph(innerHtml, textAlign) {
+        const styleAttr = textAlign ? ` style="text-align: ${textAlign};"` : '';
+        let content = convertInnerHtml(innerHtml);
+        content = wrapVerdana(content);
+        return `<p class="MsoNormal"${styleAttr}>${content}</p>`;
+    }
+
+    function buildImageTable(src, caption) {
+        const cleanSrc = cleanImgUrl(src);
+        return `<table align="center" cellpadding="0" cellspacing="0" class="tr-caption-container" style="margin-left: auto; margin-right: auto;"><tbody><tr><td style="text-align: center;"><img src="${cleanSrc}" style="margin-left: auto; margin-right: auto;" /></td></tr><tr><td class="tr-caption" style="text-align: center;">${convertInnerHtml(caption)}</td></tr></tbody></table>`;
+    }
+
+    function buildImageLeft(src, width) {
+        const cleanSrc = cleanImgUrl(src);
+        const styleAttr = width ? ` style="width: ${width}; height: auto;"` : '';
+        return `<div class="separator" style="clear: both; text-align: center;"><a href="${cleanSrc}" style="clear: left; float: left; margin-bottom: 1em; margin-right: 1em;"><img border="0" src="${cleanSrc}"${styleAttr} /></a></div>`;
+    }
+
+    function buildImageCenter(src) {
+        const cleanSrc = cleanImgUrl(src);
+        return `<div class="separator" style="clear: both; text-align: center;"><img src="${cleanSrc}" style="margin-left: auto; margin-right: auto;" /></div>`;
+    }
+
+    function buildVideo(videoId, caption) {
+        const iframeHtml = `<iframe allowfullscreen="" class="BLOG_video_class" height="300" src="https://www.youtube.com/embed/${videoId}" width="520"></iframe>`;
+        const captionHtml = caption
+            ? `\n    <figcaption>${wrapVerdana(convertInnerHtml(caption))}</figcaption>`
+            : '';
+        return `<div class="separator" style="clear: both; text-align: center;">\n  <figure>\n    ${wrapVerdana(iframeHtml)}${captionHtml}\n  </figure>\n</div>`;
+    }
+
+    function buildList(content, ordered) {
+        const tag = ordered ? 'ol' : 'ul';
+        // Strip wp:list-item block comments
+        const inner = content
+            .replace(/<!-- wp:list-item[^>]*-->/g, '')
+            .replace(/<!-- \/wp:list-item -->/g, '');
+        const parser = new DOMParser();
+        const doc = parser.parseFromString('<div>' + inner + '</div>', 'text/html');
+        let listHtml = '';
+        doc.querySelectorAll('li').forEach(li => {
+            const liContent = wrapVerdana(convertInnerHtml(li.innerHTML));
+            listHtml += `<li>${liContent}</li>\n`;
+        });
+        return `<${tag}>\n${listHtml}</${tag}>`;
+    }
+
+    // ========================
+    // CONVERT SINGLE BLOCK
+    // ========================
+    function convertBlock(block, isFirstHeading) {
+        const { name, attrs, content } = block;
+        const textAlign = getTextAlign(attrs);
+        const fontSize = attrs.fontSize || '';
+
+        switch (name) {
+            case 'heading': {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(content, 'text/html');
+                const hEl = doc.querySelector('h1,h2,h3,h4,h5,h6');
+                const innerHtml = hEl ? hEl.innerHTML : content;
+                const level = attrs.level || 2;
+
+                stats.headings++;
+
+                if (fontSize === 'large' || isFirstHeading) {
+                    // Main title → h1 with x-large
+                    return buildHeading(innerHtml, 1, textAlign || 'center', 'x-large');
+                }
+
+                const bloggerFontSize = fontSize ? wpFontSizeToBlogger(fontSize) : '';
+                if (bloggerFontSize) {
+                    return buildHeading(innerHtml, level, textAlign, bloggerFontSize);
+                }
+
+                // Sub-heading without fontSize → h2 with verdana bold
+                return buildHeading(innerHtml, level, textAlign, '');
+            }
+
+            case 'paragraph': {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(content, 'text/html');
+                const p = doc.querySelector('p');
+                const innerHtml = p ? p.innerHTML : content;
+
+                stats.paragraphs++;
+
+                // fontSize medium + all-bold content (e.g. "Tác giả" labels)
+                if (fontSize === 'medium') {
+                    return buildBoldParagraph(innerHtml, textAlign || 'justify');
+                }
+
+                return buildParagraph(innerHtml, textAlign);
+            }
+
+            case 'image': {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(content, 'text/html');
+                const img = doc.querySelector('img');
+                if (!img) return '';
+
+                const src = img.getAttribute('src') || '';
+                const figcaption = doc.querySelector('figcaption');
+                const caption = figcaption ? figcaption.innerHTML : '';
+                const align = attrs.align || '';
+                const width = attrs.width || '';
+
+                stats.images++;
+
+                if (caption.trim()) {
+                    return buildImageTable(src, caption);
+                }
+                if (align === 'left') {
+                    return buildImageLeft(src, width);
+                }
+                return buildImageCenter(src);
+            }
+
+            case 'embed': {
+                const url = (attrs.url || '').trim();
+                const videoId = extractYouTubeId(url);
+                if (!videoId) return '';
+
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(content, 'text/html');
+                const figcaption = doc.querySelector('figcaption');
+                const caption = figcaption ? figcaption.innerHTML : '';
+
+                stats.videos++;
+                return buildVideo(videoId, caption);
+            }
+
+            case 'more':
+                stats.more++;
+                return '<!--more-->';
+
+            case 'separator':
+                stats.separators++;
+                return '<hr align="left" size="1" width="33%" />';
+
+            case 'list': {
+                const ordered = !!attrs.ordered;
+                stats.lists++;
+                return buildList(content, ordered);
+            }
+
+            default:
+                return '';
+        }
+    }
+
+    // ========================
+    // MAIN CONVERT FUNCTION
+    // ========================
+    function convert(wpHtml) {
+        stats = { headings: 0, paragraphs: 0, images: 0, videos: 0, more: 0, separators: 0, lists: 0 };
+
+        const blocks = parseWpBlocks(wpHtml);
+        let isFirstHeading = true;
+        const output = [];
+
+        for (const block of blocks) {
+            const wasFirstHeading = isFirstHeading;
+            if (block.name === 'heading') isFirstHeading = false;
+
+            const result = convertBlock(block, wasFirstHeading && block.name === 'heading');
+            if (result) output.push(result);
+        }
+
+        return output.join('\n\n');
+    }
+
+    // ========================
+    // EVENT HANDLERS
+    // ========================
+    transformBtn.addEventListener('click', function () {
+        if (!inputText.value.trim()) {
+            showStatus('Paste WordPress Block HTML vào input trước.');
+            return;
+        }
+
+        try {
+            const result = convert(inputText.value);
+            outputText.value = result;
+            copyBtn.disabled = false;
+
+            const parts = [];
+            if (stats.headings > 0) parts.push(stats.headings + ' heading');
+            if (stats.paragraphs > 0) parts.push(stats.paragraphs + ' paragraph');
+            if (stats.images > 0) parts.push(stats.images + ' image');
+            if (stats.videos > 0) parts.push(stats.videos + ' video');
+            if (stats.more > 0) parts.push(stats.more + ' more');
+            if (stats.separators > 0) parts.push(stats.separators + ' separator');
+            if (stats.lists > 0) parts.push(stats.lists + ' list');
+
+            showStatus('Convert thành công! Blocks: ' + parts.join(', '));
+        } catch (e) {
+            showStatus('Lỗi: ' + e.message);
+            console.error(e);
+        }
+    });
+
+    copyBtn.addEventListener('click', function () {
+        outputText.select();
+        document.execCommand('copy');
+        showStatus('Đã copy!');
+        setTimeout(() => { statusMessage.style.display = 'none'; }, 2000);
+    });
+});
+</script>
+</body>
+</html>
