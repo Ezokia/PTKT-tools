@@ -785,10 +785,14 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
 
-        // Style all <a> tags
+        // Style all <a> tags: internal (phantichkinhte123) → red + underline; external → underline only
         clone.querySelectorAll('a').forEach(a => {
+            const href = a.getAttribute('href') || '';
             const existing = a.getAttribute('style') || '';
-            a.setAttribute('style', mergeStyle(existing, PTKT_LINK_STYLE));
+            const linkStyle = href.includes('phantichkinhte123')
+                ? PTKT_LINK_STYLE
+                : 'text-decoration: underline';
+            a.setAttribute('style', mergeStyle(existing, linkStyle));
         });
 
         // Convert b/i → strong/em via innerHTML string pass
