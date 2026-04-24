@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="vi">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Blogger → WordPress Block Converter</title>
+    <title>Convert to WordPress</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -26,6 +26,19 @@
             font-weight: bold;
             margin-bottom: 16px;
         }
+        .source-selector {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+        .source-selector label {
+            font-weight: normal;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+        }
         .instruction-box {
             background-color: #f5f3ed;
             border-radius: 6px;
@@ -45,6 +58,9 @@
         }
         .instruction-box ul {
             margin-left: 20px;
+        }
+        .instr-blogger, .instr-wp {
+            display: none;
         }
         .form-group {
             margin-bottom: 16px;
@@ -109,11 +125,16 @@
 </head>
 <body>
 <div class="container">
-    <h1>Blogger → WordPress Block Converter</h1>
+    <h1>Convert to WordPress</h1>
 
-    <details class="instruction-box">
+    <div class="source-selector">
+        <label><input type="radio" name="source" value="blogger" checked> Blogger</label>
+        <label><input type="radio" name="source" value="wp"> WordPress khác</label>
+    </div>
+
+    <details class="instruction-box" open>
         <summary>Xem chi tiết chức năng converter</summary>
-        <ul>
+        <ul class="instr-blogger">
             <li>Ảnh → WordPress image block (auto canh giữa)</li>
             <li>Video YouTube → WordPress embed block</li>
             <li>Strip inline styles (font-family, font-size, color, MSO...)</li>
@@ -124,10 +145,20 @@
             <li><code>&lt;!--more--&gt;</code> → WordPress more block</li>
             <li>Footnote/Endnote: giữ nguyên ID links</li>
         </ul>
+        <ul class="instr-wp">
+            <li>Heading h1 → h2, giữ level cho h3–h6</li>
+            <li>Ảnh → image placeholder trống <code>&lt;figure&gt;&lt;img alt=""/&gt;&lt;/figure&gt;</code>, kèm URL gốc ngay dưới để m làm ảnh</li>
+            <li>Link → apply PTKT style <code>color: #C00000; text-decoration: underline</code></li>
+            <li>Text wrap <code>&lt;span style="color: #393939"&gt;</code> (inner color override)</li>
+            <li>Drop inline font-size/font-family, giữ color</li>
+            <li>text-align justify/center → WP block attrs + class</li>
+            <li>padding-left → treat as justify</li>
+            <li>Append citation block cuối bài</li>
+        </ul>
     </details>
 
     <div class="form-group">
-        <label for="inputText">Input HTML (Blogger):</label>
+        <label for="inputText"><span id="inputLabel">Input HTML (Blogger):</span></label>
         <textarea id="inputText" placeholder="Paste HTML từ Blogger vào đây..."></textarea>
     </div>
 
@@ -150,117 +181,86 @@ document.addEventListener('DOMContentLoaded', function() {
     const statusMessage = document.getElementById('statusMessage');
     const transformBtn = document.getElementById('transformBtn');
     const copyBtn = document.getElementById('copyBtn');
+    const inputLabel = document.getElementById('inputLabel');
+    const instrBlogger = document.querySelector('.instr-blogger');
+    const instrWp = document.querySelector('.instr-wp');
+    const sourceRadios = document.querySelectorAll('input[name="source"]');
 
-    let stats = { headings: 0, paragraphs: 0, images: 0, videos: 0, toggles: 0, more: 0, separators: 0, footnotes: 0 };
+    let stats = { headings: 0, paragraphs: 0, images: 0, videos: 0, toggles: 0, more: 0, separators: 0, footnotes: 0, lists: 0 };
 
     function showStatus(msg) {
         statusMessage.textContent = msg;
         statusMessage.style.display = 'block';
     }
 
-    // ========================
-    // STRING-LEVEL PRE-CLEAN
-    // ========================
+    function getSource() {
+        const r = document.querySelector('input[name="source"]:checked');
+        return r ? r.value : 'blogger';
+    }
+
+    function updateUIForSource() {
+        const src = getSource();
+        if (src === 'blogger') {
+            instrBlogger.style.display = 'block';
+            instrWp.style.display = 'none';
+            inputLabel.textContent = 'Input HTML (Blogger):';
+            inputText.placeholder = 'Paste HTML từ Blogger vào đây...';
+        } else {
+            instrBlogger.style.display = 'none';
+            instrWp.style.display = 'block';
+            inputLabel.textContent = 'Input HTML (WordPress khác):';
+            inputText.placeholder = 'Paste HTML raw từ WordPress khác / CMS vào đây...';
+        }
+    }
+    sourceRadios.forEach(r => r.addEventListener('change', updateUIForSource));
+    updateUIForSource();
+
+    // ============================================================
+    // ============== BLOGGER MODE (giữ nguyên logic) =============
+    // ============================================================
+
     function preClean(html) {
-        // Remove MSO conditional comments: <!--[if ...]-->...<!--[endif]-->
         html = html.replace(/<!--\[if[^\]]*\]>[\s\S]*?<!\[endif\]-->/gi, '');
-        // Remove standalone <!--[endif]--> leftovers
         html = html.replace(/<!--\[endif\]-->/gi, '');
-        // Remove orphaned <!--[if ...]-->
         html = html.replace(/<!--\[if[^\]]*\]-->/gi, '');
-        // Remove <o:p></o:p>
         html = html.replace(/<o:p><\/o:p>/gi, '');
         html = html.replace(/<o:p>[\s\S]*?<\/o:p>/gi, '');
-        // Remove v:shapes attributes
         html = html.replace(/\s*v:shapes="[^"]*"/gi, '');
-        // Remove mso-* styles from style attributes
         html = html.replace(/mso-[^;:"]+:[^;"]+(;|(?="))/gi, '');
-        // Remove face attributes on spans
         html = html.replace(/\s*face="[^"]*"/gi, '');
-        // Remove class="MsoNormal", class="MsoEndnoteText", class="MsoEndnoteReference"
         html = html.replace(/\s*class="Mso[^"]*"/gi, '');
-        // Remove empty style attributes left after cleaning
         html = html.replace(/\s*style="\s*"/gi, '');
         return html;
     }
 
-    // ========================
-    // CLEAN BLOGGER LINK PATTERNS
-    // ========================
     function cleanLinks(html) {
-        // Step 1: Remove text-decoration spans (underline-word pattern)
-        // These spans break underline on spaces between words in links
         html = html.replace(/<span\s+style="[^"]*text-decoration[^"]*none[^"]*">\s*<\/span>/gi, ' ');
         html = html.replace(/<span\s+style="[^"]*text-underline[^"]*none[^"]*">\s*<\/span>/gi, ' ');
         html = html.replace(/<span[^>]*style="[^"]*text-decoration[^"]*"[^>]*>(\s+)<\/span>/gi, '$1');
-        
-        // Step 2: Normalize gap between </a> and </u> (collapse to </a></u> but keep a trailing space)
         html = html.replace(/<\/a>(\s|&nbsp;|&#160;)+<\/u>/gi, '</a></u> ');
-        
-        // Step 3: Remove <u> wrapping single <a> tags
-        // Use [^<]* inside <a> to prevent matching across multiple tags
-        // Then allow <sup>, <sub>, <span>, <strong>, <em> inside but not other <a> or </a>
-        // html = html.replace(/<u>\s*(<a\s[^>]*>(?:[^<]|<(?!\/a>|a\s))*<\/a>)\s*<\/u>/gi, '$1');
-        
-        // Step 4: Clean up multiple consecutive spaces inside links
-        html = html.replace(/(<a\s[^>]*>)((?:[^<]|<(?!\/a>))*?)(<\/a>)/gi, function(match, open, content, close) {
+        html = html.replace(/(<a\s[^>]*>)((?:[^<]|<(?!\/a>))*?)(<\/a>)/gi, function(m, open, content, close) {
             content = content.replace(/\s{2,}/g, ' ');
             return open + content + close;
         });
-        
         return html;
     }
 
-    // ========================
-    // STRIP BLOGGER SPANS (keep content)
-    // ========================
-    function stripDecorativeSpans(html) {
-        // Remove <span style="font-family: verdana;"> ... </span> (keep content)
-        // Do this iteratively since they can be nested
-        let prev = '';
-        let max = 20;
-        while (html !== prev && max-- > 0) {
-            prev = html;
-            // Spans with only font-family style
-            html = html.replace(/<span\s+style="[^"]*font-family:[^"]*"[^>]*>([\s\S]*?)<\/span>/gi, '$1');
-        }
-        
-        // Remove remaining empty spans
-        html = html.replace(/<span>\s*<\/span>/gi, '');
-        html = html.replace(/<span\s+style="\s*">\s*<\/span>/gi, '');
-        // KEEP spans with color style — preserve text color
-
-        return html;
-    }
-
-    // ========================
-    // CONVERT <b> → <strong>, <i> → <em>
-    // ========================
     function convertInlineTags(html) {
         html = html.replace(/<b\b([^>]*)>/gi, '<strong$1>');
         html = html.replace(/<\/b>/gi, '</strong>');
         html = html.replace(/<i\b([^>]*)>/gi, '<em$1>');
         html = html.replace(/<\/i>/gi, '</em>');
-        // Merge adjacent <strong> tags: </strong><strong> → (nothing)
         html = html.replace(/<\/strong>\s*<strong[^>]*>/gi, '');
-        // Merge adjacent <em> tags
         html = html.replace(/<\/em>\s*<em[^>]*>/gi, '');
         return html;
     }
 
-    // ========================
-    // EXTRACT YOUTUBE URL FROM IFRAME SRC
-    // ========================
     function extractYouTubeUrl(src) {
-        // src like "https://www.youtube.com/embed/VIDEO_ID"
         const match = src.match(/youtube\.com\/embed\/([a-zA-Z0-9_-]+)/);
         if (match) return 'https://youtu.be/' + match[1];
         return src;
     }
 
-    // ========================
-    // GET CLEAN TEXT ALIGN
-    // ========================
     function getTextAlign(el) {
         const style = el.getAttribute('style') || '';
         const alignAttr = el.getAttribute('align') || '';
@@ -270,9 +270,6 @@ document.addEventListener('DOMContentLoaded', function() {
         return '';
     }
 
-    // ========================
-    // GET PADDING LEFT (for indentation)
-    // ========================
     function getPaddingLeft(el) {
         const style = el.getAttribute('style') || '';
         let match = style.match(/padding-left:\s*([^;]+)/i);
@@ -282,26 +279,16 @@ document.addEventListener('DOMContentLoaded', function() {
         return '';
     }
 
-    // ========================
-    // CLEAN INNER HTML OF A PARAGRAPH
-    // ========================
     function cleanInnerHtml(el) {
-        // DOM-based span cleanup — avoids regex nesting bugs entirely
-        // Iterate until stable: each pass may expose new spans to clean
         let domChanged = true;
         while (domChanged) {
             domChanged = false;
-
-            // 1. Remove empty spans (no text, no img)
             el.querySelectorAll('span').forEach(span => {
                 if (!span.textContent.trim() && !span.querySelector('img')) {
                     span.remove();
                     domChanged = true;
                 }
             });
-
-            // 2. Unwrap spans with NO color in style (font-family, font-size, mso-*, etc.)
-            //    Also unwrap bare spans (no style, no class)
             el.querySelectorAll('span').forEach(span => {
                 const style = span.getAttribute('style') || '';
                 const hasClass = span.hasAttribute('class');
@@ -313,49 +300,27 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
         }
-
         let html = el.innerHTML;
-
-        // Remove any remaining empty spans (safety net after string ops)
         html = html.replace(/<span[^>]*>\s*<\/span>/gi, '');
-
-        // Convert b/i tags
         html = convertInlineTags(html);
-
-        // Fix mid-sentence line breaks (Word/Blogger \n causes <br> in WordPress)
         html = html.replace(/\r?\n/g, ' ').replace(/ {2,}/g, ' ');
-
-        // Remove &nbsp; at beginning/end, convert mid-text &nbsp; to space
         html = html.replace(/&nbsp;/g, '\u00a0');
-
-        // Clean up whitespace
         html = html.trim();
-
-        // Remove trailing <br> or newlines
         html = html.replace(/(<br\s*\/?>)+$/gi, '');
-
         return html;
     }
 
-    // ========================
-    // CHECK IF PARAGRAPH IS BOLD-ONLY (potential heading or bold para)
-    // ========================
     function isBoldOnlyParagraph(el) {
         const clone = el.cloneNode(true);
-        // Remove all spans (decorative)
         clone.querySelectorAll('span').forEach(s => {
             while (s.firstChild) s.parentNode.insertBefore(s.firstChild, s);
             s.remove();
         });
-        // Remove o:p
         clone.querySelectorAll('o\\:p').forEach(s => s.remove());
-
-        // Check if content is entirely within <b> or <strong>
         const children = Array.from(clone.childNodes).filter(n => {
             if (n.nodeType === 3) return n.textContent.trim().length > 0;
             return true;
         });
-
         if (children.length === 1) {
             const child = children[0];
             if (child.nodeType === 1 && (child.tagName === 'B' || child.tagName === 'STRONG')) {
@@ -365,16 +330,12 @@ document.addEventListener('DOMContentLoaded', function() {
         return false;
     }
 
-    // ========================
-    // CHECK IF BOLD PARAGRAPH HAS FONT-SIZE STYLE (→ heading)
-    // ========================
     function hasFontSizeInBold(el) {
         const spans = el.querySelectorAll('b span[style], strong span[style]');
         for (const span of spans) {
             const style = span.getAttribute('style') || '';
             if (/font-size/i.test(style)) return true;
         }
-        // Also check direct font-size on spans wrapping b/strong
         const allSpans = el.querySelectorAll('span[style]');
         for (const span of allSpans) {
             const style = span.getAttribute('style') || '';
@@ -384,9 +345,6 @@ document.addEventListener('DOMContentLoaded', function() {
         return false;
     }
 
-    // ========================
-    // DETECT SEPARATOR DIV (Blogger image/video container)
-    // ========================
     function isSeparatorDiv(el) {
         return el.tagName === 'DIV' && (
             (el.getAttribute('class') || '').includes('separator') ||
@@ -394,45 +352,19 @@ document.addEventListener('DOMContentLoaded', function() {
         );
     }
 
-    // ========================
-    // DETECT ENDNOTE LIST
-    // ========================
     function isEndnoteList(el) {
         const style = el.getAttribute('style') || '';
         return style.includes('endnote-list') || style.includes('footnote-list') ||
                el.querySelector('[id^="edn"], [id^="ftn"], [name^="_ftn"], [name^="_edn"]') !== null;
     }
 
-    // ========================
-    // DETECT TOGGLE PATTERN
-    // ========================
     function isToggleLabel(node) {
         if (node.nodeType !== 1) return false;
         return node.tagName === 'LABEL' && node.getAttribute('for') &&
                node.getAttribute('for').startsWith('toggle');
     }
 
-    // ========================
-    // BUILD WP PARAGRAPH BLOCK
-    // ========================
     function wpParagraph(innerHtml, textAlign, paddingLeft, fontSize) {
-        let attrs = {};
-        let styleObj = {};
-        let classes = [''];
-
-        if (textAlign && textAlign !== 'left') {
-            if (!attrs.style) attrs.style = { typography: {} };
-            attrs.style.typography.textAlign = textAlign;
-        }
-        if (fontSize) {
-            attrs.fontSize = fontSize;
-        }
-
-        let attrStr = '';
-        let classStr = '';
-        let styleStr = '';
-
-        // Build attribute JSON
         let jsonParts = [];
         if (textAlign && textAlign !== 'left') {
             jsonParts.push(`"style":{"typography":{"textAlign":"${textAlign}"}}`);
@@ -440,55 +372,31 @@ document.addEventListener('DOMContentLoaded', function() {
         if (fontSize) {
             jsonParts.push(`"fontSize":"${fontSize}"`);
         }
-        if (jsonParts.length > 0) {
-            attrStr = ' {' + jsonParts.join(',') + '}';
-        }
-
-        // Build class string
+        let attrStr = jsonParts.length > 0 ? ' {' + jsonParts.join(',') + '}' : '';
         let classList = [];
         if (textAlign && textAlign !== 'left') classList.push('has-text-align-' + textAlign);
         if (fontSize) classList.push('has-' + fontSize + '-font-size');
-        classStr = classList.length > 0 ? ' class="' + classList.join(' ') + '"' : '';
-
-        // padding-left removed entirely — WP block parser doesn't handle it correctly
-
-        return `<!-- wp:paragraph${attrStr} -->\n<p${classStr}${styleStr}>${innerHtml}</p>\n<!-- /wp:paragraph -->`;
+        let classStr = classList.length > 0 ? ' class="' + classList.join(' ') + '"' : '';
+        return `<!-- wp:paragraph${attrStr} -->\n<p${classStr}>${innerHtml}</p>\n<!-- /wp:paragraph -->`;
     }
 
-    // ========================
-    // BUILD WP HEADING BLOCK
-    // ========================
     function wpHeading(innerHtml, level, textAlign, fontSize) {
         let jsonParts = [];
         if (level !== 2) jsonParts.push(`"level":${level}`);
-        
         let styleParts = [];
-        if (textAlign && textAlign !== 'left') {
-            styleParts.push(`"textAlign":"${textAlign}"`);
-        }
-        if (fontSize) {
-            styleParts.push(`"fontSize":"${fontSize}"`);
-        }
-        if (styleParts.length > 0) {
-            jsonParts.push(`"style":{"typography":{${styleParts.join(',')}}}`);
-        }
-
+        if (textAlign && textAlign !== 'left') styleParts.push(`"textAlign":"${textAlign}"`);
+        if (fontSize) styleParts.push(`"fontSize":"${fontSize}"`);
+        if (styleParts.length > 0) jsonParts.push(`"style":{"typography":{${styleParts.join(',')}}}`);
         let attrStr = jsonParts.length > 0 ? ' {' + jsonParts.join(',') + '}' : '';
-
         let classList = ['wp-block-heading'];
         if (textAlign && textAlign !== 'left') classList.push('has-text-align-' + textAlign);
         let classStr = ' class="' + classList.join(' ') + '"';
-
         let styles = [];
         if (fontSize) styles.push('font-size:' + fontSize);
         let styleStr = styles.length > 0 ? ' style="' + styles.join(';') + '"' : '';
-
         return `<!-- wp:heading${attrStr} -->\n<h${level}${classStr}${styleStr}>${innerHtml}</h${level}>\n<!-- /wp:heading -->`;
     }
 
-    // ========================
-    // BUILD WP IMAGE BLOCK
-    // ========================
     function wpImage(src, alt, caption, align, width, height) {
         let jsonParts = [];
         if (align) jsonParts.push(`"align":"${align}"`);
@@ -497,15 +405,12 @@ document.addEventListener('DOMContentLoaded', function() {
             if (width) jsonParts.push(`"width":"${width}"`);
             if (height) jsonParts.push(`"height":"${height}"`);
         }
-
         let attrStr = jsonParts.length > 0 ? ' {' + jsonParts.join(',') + '}' : '';
-
         let classList = ['wp-block-image'];
         if (align) classList.push('align' + align);
         classList.push('size-large');
         if (width || height) classList.push('is-resized');
         let classStr = ' class="' + classList.join(' ') + '"';
-
         let imgStyle = '';
         if (width || height) {
             let parts = [];
@@ -513,16 +418,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (height) parts.push('height:' + height);
             imgStyle = ' style="' + parts.join(';') + '"';
         }
-
         let imgTag = `<img src="${src}" alt="${alt || ''}"${imgStyle} />`;
         let captionHtml = caption ? `<figcaption class="wp-element-caption">${caption}</figcaption>` : '';
-
         return `<!-- wp:image${attrStr} -->\n<figure${classStr}>${imgTag}${captionHtml}</figure>\n<!-- /wp:image -->`;
     }
 
-    // ========================
-    // BUILD WP EMBED BLOCK (YouTube)
-    // ========================
     function wpEmbed(url, caption) {
         let jsonParts = [`"url":"${url}"`];
         if (url.includes('youtu')) {
@@ -530,108 +430,66 @@ document.addEventListener('DOMContentLoaded', function() {
                 `"className":"wp-embed-aspect-16-9 wp-has-aspect-ratio"`);
         }
         let attrStr = ' {' + jsonParts.join(',') + '}';
-
         let classList = ['wp-block-embed'];
         if (url.includes('youtu')) {
             classList.push('is-type-video', 'is-provider-youtube', 'wp-block-embed-youtube',
                 'wp-embed-aspect-16-9', 'wp-has-aspect-ratio');
         }
         let classStr = ' class="' + classList.join(' ') + '"';
-
         let captionHtml = caption ? `<figcaption class="wp-element-caption">${caption}</figcaption>` : '';
-
         return `<!-- wp:embed${attrStr} -->\n<figure${classStr}><div class="wp-block-embed__wrapper">\n${url}\n</div>${captionHtml}</figure>\n<!-- /wp:embed -->`;
     }
 
-    // ========================
-    // BUILD WP MORE BLOCK
-    // ========================
-    function wpMore() {
-        return `<!-- wp:more -->\n<!--more-->\n<!-- /wp:more -->`;
-    }
-
-    // ========================
-    // BUILD WP SEPARATOR BLOCK
-    // ========================
-    function wpSeparator() {
-        return `<!-- wp:separator -->\n<hr class="wp-block-separator has-alpha-channel-opacity" />\n<!-- /wp:separator -->`;
-    }
-
-    // ========================
-    // BUILD WP DETAILS BLOCK
-    // ========================
+    function wpMore() { return `<!-- wp:more -->\n<!--more-->\n<!-- /wp:more -->`; }
+    function wpSeparator() { return `<!-- wp:separator -->\n<hr class="wp-block-separator has-alpha-channel-opacity" />\n<!-- /wp:separator -->`; }
     function wpDetails(summary, contentHtml) {
         return `<!-- wp:details -->\n<details class="wp-block-details"><summary>${summary}</summary><!-- wp:paragraph -->\n<p>${contentHtml}</p>\n<!-- /wp:paragraph --></details>\n<!-- /wp:details -->`;
     }
 
-    // ========================
-    // PROCESS SEPARATOR DIV → IMAGE or VIDEO block
-    // ========================
     function processSeparatorDiv(div) {
         const iframe = div.querySelector('iframe');
         const img = div.querySelector('img');
         const figcaption = div.querySelector('figcaption');
         const caption = figcaption ? cleanInnerHtml(figcaption) : '';
-
-        // Check for YouTube iframe
         if (iframe) {
             const src = iframe.getAttribute('src') || '';
             const ytUrl = extractYouTubeUrl(src);
             stats.videos++;
             return wpEmbed(ytUrl, caption);
         }
-
-        // Image
         if (img) {
             let src = img.getAttribute('src') || '';
             src = src.replace(/=w\d+(-h\d+)?$/, '=s16000');
             src = src.replace(/=s\d+$/, '=s16000');
             const alt = img.getAttribute('alt') || '';
-            
-            // Check if small/aligned image (author photo)
             const containerStyle = div.innerHTML;
             let align = '';
             let width = '';
             let height = 'auto';
-
-            // Detect float left (author image pattern)
             if (containerStyle.includes('float: left') || containerStyle.includes('float:left')) {
                 align = 'left';
             }
-
-            // Detect explicit small dimensions
             const imgWidth = img.getAttribute('width');
-            const imgHeight = img.getAttribute('height');
             if (imgWidth && parseInt(imgWidth) <= 200) {
                 width = imgWidth + 'px';
                 height = 'auto';
             }
-
             stats.images++;
             return wpImage(src, alt, caption, align, width, width ? height : '');
         }
-
         return '';
     }
 
-    // ========================
-    // PROCESS ENDNOTE/FOOTNOTE SECTION
-    // ========================
     function processEndnoteList(div, blocks) {
-        // Add separator
         stats.separators++;
         blocks.push(wpSeparator());
-
-        // Find all endnote/footnote paragraphs
         const paragraphs = div.querySelectorAll('p');
         for (const p of paragraphs) {
             let html = cleanInnerHtml(p);
             if (html.trim()) {
-                // Clean footnote reference structure
                 html = html.replace(/<span[^>]*class="[^"]*EndnoteReference[^"]*"[^>]*>/gi, '');
                 html = html.replace(/<\/span>/gi, '');
                 html = html.trim();
-                
                 if (html) {
                     stats.footnotes++;
                     blocks.push(wpParagraph(html, 'justify', '', ''));
@@ -640,115 +498,63 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // ========================
-    // PROCESS TOGGLE PATTERN
-    // ========================
     function processToggle(children, startIndex) {
         const label = children[startIndex];
         const summary = label.textContent.trim();
         let skip = 1;
         let contentHtml = '';
-
-        // Find the input checkbox and toggle-content div
         for (let j = startIndex + 1; j < children.length && j < startIndex + 5; j++) {
             const node = children[j];
             if (node.nodeType !== 1) { skip++; continue; }
-            
-            if (node.tagName === 'INPUT' && node.getAttribute('type') === 'checkbox') {
-                skip++;
-                continue;
-            }
+            if (node.tagName === 'INPUT' && node.getAttribute('type') === 'checkbox') { skip++; continue; }
             if ((node.getAttribute('class') || '').includes('toggle-content')) {
-                // Extract content, remove close label
                 const clone = node.cloneNode(true);
                 clone.querySelectorAll('label').forEach(l => l.remove());
                 contentHtml = cleanInnerHtml(clone);
                 skip++;
                 continue;
             }
-            if (node.tagName === 'STYLE') {
-                skip++;
-                continue;
-            }
-            // If we hit something else, stop
+            if (node.tagName === 'STYLE') { skip++; continue; }
             if (node.tagName !== 'INPUT' && !(node.getAttribute('class') || '').includes('toggle') &&
                 node.tagName !== 'STYLE') {
                 break;
             }
             skip++;
         }
-
         stats.toggles++;
         return { block: wpDetails(summary, contentHtml), skip: skip };
     }
 
-    // ========================
-    // MAIN CONVERT FUNCTION
-    // ========================
-    function convert(bloggerHtml) {
-        stats = { headings: 0, paragraphs: 0, images: 0, videos: 0, toggles: 0, more: 0, separators: 0, footnotes: 0 };
-
-        // Step 1: Pre-clean
+    function convertBlogger(bloggerHtml) {
+        stats = { headings: 0, paragraphs: 0, images: 0, videos: 0, toggles: 0, more: 0, separators: 0, footnotes: 0, lists: 0 };
         let html = preClean(bloggerHtml);
-        
-        // Step 2: Clean link patterns
         html = cleanLinks(html);
-        
-        // Step 3: Parse into DOM
         const parser = new DOMParser();
         const doc = parser.parseFromString('<div id="wp-root">' + html + '</div>', 'text/html');
         const root = doc.getElementById('wp-root');
-        
-        // Step 4: Walk nodes and build blocks
         const blocks = [];
         const children = Array.from(root.childNodes);
         let i = 0;
         let isFirstHeading = true;
-
         while (i < children.length) {
             const node = children[i];
-
-            // Skip whitespace-only text nodes
             if (node.nodeType === 3 && !node.textContent.trim()) { i++; continue; }
-
-            // HTML comment nodes (<!--more--> etc.)
             if (node.nodeType === 8) {
                 const text = node.textContent.trim();
-                if (text === 'more') {
-                    stats.more++;
-                    blocks.push(wpMore());
-                }
-                i++;
-                continue;
+                if (text === 'more') { stats.more++; blocks.push(wpMore()); }
+                i++; continue;
             }
-
-            // Only process element nodes from here
             if (node.nodeType !== 1) { i++; continue; }
-
             const tag = node.tagName.toLowerCase();
-
-            // ---- TOGGLE DETECTION ----
             if (isToggleLabel(node)) {
                 const result = processToggle(children, i);
                 blocks.push(result.block);
                 i += result.skip;
                 continue;
             }
-
-            // ---- STYLE tags → skip ----
             if (tag === 'style') { i++; continue; }
-
-            // ---- INPUT (leftover from toggle) → skip ----
             if (tag === 'input') { i++; continue; }
-
-            // ---- HR → separator ----
-            if (tag === 'hr') {
-                stats.separators++;
-                blocks.push(wpSeparator());
-                i++; continue;
-            }
-
-            // ---- H1 → H2 heading with font-size 36px ----
+            if (tag === 'hr') { stats.separators++; blocks.push(wpSeparator()); i++; continue; }
             if (tag === 'h1') {
                 const innerHtml = cleanInnerHtml(node);
                 const textAlign = getTextAlign(node) || 'center';
@@ -761,8 +567,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 i++; continue;
             }
-
-            // ---- H2, H3 → heading block ----
             if (tag === 'h2' || tag === 'h3') {
                 const innerHtml = cleanInnerHtml(node);
                 const level = parseInt(tag[1]);
@@ -770,14 +574,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 blocks.push(wpHeading(innerHtml, level, getTextAlign(node), ''));
                 i++; continue;
             }
-
-            // ---- TABLE IMAGE (tr-caption-container) ----
             if (tag === 'table' && ((node.getAttribute('class') || '').includes('tr-caption-container'))) {
                 const img = node.querySelector('img');
                 const captionTd = node.querySelector('td.tr-caption');
                 if (img) {
                     let src = img.getAttribute('src') || '';
-                    // Strip blogger resize suffix, force original size
                     src = src.replace(/=w\d+(-h\d+)?$/, '=s16000');
                     src = src.replace(/=s\d+$/, '=s16000');
                     const caption = captionTd ? cleanInnerHtml(captionTd) : '';
@@ -787,14 +588,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     const tableStyle = node.getAttribute('style') || '';
                     if (tableAlign === 'left' || tableStyle.includes('float: left') || tableStyle.includes('float:left') || tableStyle.includes('text-align: left')) {
                         align = 'left';
-                    } else if (tableAlign === 'right' || tableStyle.includes('float: right') || tableStyle.includes('float:right') ||  tableStyle.includes('text-align: right')) {
+                    } else if (tableAlign === 'right' || tableStyle.includes('float: right') || tableStyle.includes('float:right') || tableStyle.includes('text-align: right')) {
                         align = 'right';
                     }
                     blocks.push(wpImage(src, '', caption, align, '', ''));
                 }
                 i++; continue;
             }
-            // ---- LIST (ul/ol) ----
             if (tag === 'ul' || tag === 'ol') {
                 const items = node.querySelectorAll('li');
                 let listItems = '';
@@ -807,67 +607,50 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (listItems) {
                     const listTag = tag;
                     const blockName = tag === 'ol' ? 'list {"ordered":true}' : 'list';
-                    const listClass = tag === 'ol' ? 'wp-block-list' : 'wp-block-list';
+                    const listClass = 'wp-block-list';
                     stats.paragraphs++;
                     blocks.push(`<!-- wp:${blockName} -->\n<${listTag} class="${listClass}">${listItems}</${listTag}>\n<!-- /wp:list -->`);
                 }
                 i++; continue;
             }
-
-            // ---- SEPARATOR DIV (image/video container) ----
             if (tag === 'div' && isSeparatorDiv(node)) {
                 const block = processSeparatorDiv(node);
                 if (block) blocks.push(block);
                 i++; continue;
             }
-
-            // ---- ENDNOTE/FOOTNOTE LIST DIV ----
             if (tag === 'div' && isEndnoteList(node)) {
                 processEndnoteList(node, blocks);
                 i++; continue;
             }
-
-            // ---- GENERIC DIV → recurse ----
             if (tag === 'div') {
-                // Check if it contains endnote-related elements
                 const innerBlocks = [];
                 const divChildren = Array.from(node.childNodes);
                 let di = 0;
                 while (di < divChildren.length) {
                     const dNode = divChildren[di];
                     if (dNode.nodeType === 1) {
-                        if (dNode.tagName === 'HR') {
-                            stats.separators++;
-                            innerBlocks.push(wpSeparator());
-                        } else if (dNode.tagName === 'DIV' && isEndnoteList(dNode)) {
-                            processEndnoteList(dNode, innerBlocks);
-                        } else if (dNode.tagName === 'P') {
-                            const block = processParagraph(dNode);
+                        if (dNode.tagName === 'HR') { stats.separators++; innerBlocks.push(wpSeparator()); }
+                        else if (dNode.tagName === 'DIV' && isEndnoteList(dNode)) { processEndnoteList(dNode, innerBlocks); }
+                        else if (dNode.tagName === 'P') {
+                            const block = processBloggerParagraph(dNode);
                             if (block) innerBlocks.push(block);
                         }
                     }
                     di++;
                 }
-                if (innerBlocks.length > 0) {
-                    blocks.push(...innerBlocks);
-                }
+                if (innerBlocks.length > 0) blocks.push(...innerBlocks);
                 i++; continue;
             }
-
-            // ---- PARAGRAPH ----
             if (tag === 'p') {
-                const block = processParagraph(node);
+                const block = processBloggerParagraph(node);
                 if (block) blocks.push(block);
                 i++; continue;
             }
-
-            // ---- FIGURE (standalone, not in div) ----
             if (tag === 'figure') {
                 const iframe = node.querySelector('iframe');
                 const img = node.querySelector('img');
                 const figcaption = node.querySelector('figcaption');
                 const caption = figcaption ? cleanInnerHtml(figcaption) : '';
-
                 if (iframe) {
                     const src = iframe.getAttribute('src') || '';
                     stats.videos++;
@@ -878,50 +661,30 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 i++; continue;
             }
-
-            // ---- SPAN wrapping content (leftover Blogger wrapper) ----
             if (tag === 'span') {
-                // Might contain footnote/endnote content - skip if empty
                 const text = node.textContent.trim();
                 if (text) {
                     const inner = cleanInnerHtml(node);
-                    if (inner) {
-                        stats.paragraphs++;
-                        blocks.push(wpParagraph(inner, 'justify', '', ''));
-                    }
+                    if (inner) { stats.paragraphs++; blocks.push(wpParagraph(inner, 'justify', '', '')); }
                 }
                 i++; continue;
             }
-
-            // ---- A tag at top level (unlikely but handle) ----
-            if (tag === 'a') {
-                i++; continue;
-            }
-
+            if (tag === 'a') { i++; continue; }
             i++;
         }
-
         return blocks.join('\n\n');
     }
 
-    // ========================
-    // PROCESS A SINGLE PARAGRAPH
-    // ========================
-    function processParagraph(node) {
+    function processBloggerParagraph(node) {
         const textAlign = getTextAlign(node);
         const paddingLeft = getPaddingLeft(node);
-        
-        // Check if it's a bold-only paragraph (potential heading or styled para)
         if (isBoldOnlyParagraph(node)) {
             if (hasFontSizeInBold(node)) {
-                // This is a sub-heading → H2
                 let innerHtml = cleanInnerHtml(node);
                 stats.headings++;
                 return wpHeading(innerHtml, 2, '', '');
             } else {
-                // Bold paragraph → paragraph with medium font size
                 let innerHtml = cleanInnerHtml(node);
-                // Check if it's very short (like "Tác giả", "Tuyên bố công khai")
                 const plainText = node.textContent.trim();
                 if (plainText.length < 50) {
                     stats.paragraphs++;
@@ -932,32 +695,348 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         }
-
         let innerHtml = cleanInnerHtml(node);
-        
-        // Skip empty paragraphs
-        if (!innerHtml.trim() || innerHtml.trim() === '&nbsp;' || innerHtml.trim() === '\u00a0') {
-            return null;
-        }
-
+        if (!innerHtml.trim() || innerHtml.trim() === '&nbsp;' || innerHtml.trim() === '\u00a0') return null;
         stats.paragraphs++;
         return wpParagraph(innerHtml, textAlign, paddingLeft, '');
     }
 
-    // ========================
-    // EVENT HANDLERS
-    // ========================
-    transformBtn.addEventListener('click', function() {
-        if (!inputText.value.trim()) {
-            showStatus('Paste HTML từ Blogger vào input trước.');
-            return;
+    // ============================================================
+    // ================== WORDPRESS → PTKT MODE ===================
+    // ============================================================
+
+    const PTKT_LINK_STYLE = 'color: #C00000; text-decoration: underline';
+    const PTKT_BODY_COLOR = '#393939';
+
+    const CITATION_BLOCK =
+        `<!-- wp:paragraph {"className":"has-text-align-justify","style":{"typography":{"textAlign":"justify"}}} -->\n` +
+        `<p class="has-text-align-justify"><strong><span>Nguồn bài viết: <u><a href="">[Tiêu đề bài viết]</a></u></span></strong><span>, <em>[Tên site]</em>, [Ngày tháng năm].</span></p>\n` +
+        `<!-- /wp:paragraph -->`;
+
+    // Merge a CSS declaration into an existing style string (idempotent for color/text-decoration keys).
+    function mergeStyle(existing, additions) {
+        const parts = {};
+        (existing || '').split(';').forEach(p => {
+            const idx = p.indexOf(':');
+            if (idx > -1) {
+                const k = p.slice(0, idx).trim().toLowerCase();
+                const v = p.slice(idx + 1).trim();
+                if (k) parts[k] = v;
+            }
+        });
+        additions.split(';').forEach(p => {
+            const idx = p.indexOf(':');
+            if (idx > -1) {
+                const k = p.slice(0, idx).trim().toLowerCase();
+                const v = p.slice(idx + 1).trim();
+                if (k) parts[k] = v;
+            }
+        });
+        return Object.keys(parts).map(k => k + ': ' + parts[k]).join('; ');
+    }
+
+    // Drop font-size / font-family / mso-*; keep color.
+    function cleanSpanStyle(styleStr) {
+        if (!styleStr) return '';
+        const kept = [];
+        styleStr.split(';').forEach(p => {
+            const idx = p.indexOf(':');
+            if (idx < 0) return;
+            const k = p.slice(0, idx).trim().toLowerCase();
+            const v = p.slice(idx + 1).trim();
+            if (!k || !v) return;
+            if (k === 'font-size' || k === 'font-family' || k === 'line-height' || k.startsWith('mso-')) return;
+            kept.push(k + ': ' + v);
+        });
+        return kept.join('; ');
+    }
+
+    // Process inline content: strip noise, style <a>, wrap outer <span color:#393939>.
+    function processInlineWp(el) {
+        const clone = el.cloneNode(true);
+
+        // Clean span styles + unwrap empty/useless spans
+        clone.querySelectorAll('span').forEach(span => {
+            const style = span.getAttribute('style') || '';
+            const cleaned = cleanSpanStyle(style);
+            if (cleaned) {
+                span.setAttribute('style', cleaned);
+            } else {
+                span.removeAttribute('style');
+            }
+        });
+
+        let domChanged = true;
+        while (domChanged) {
+            domChanged = false;
+            clone.querySelectorAll('span').forEach(span => {
+                if (!span.textContent.trim() && !span.querySelector('img')) {
+                    span.remove();
+                    domChanged = true;
+                    return;
+                }
+                const hasStyle = span.hasAttribute('style') && span.getAttribute('style').trim();
+                const hasClass = span.hasAttribute('class');
+                if (!hasStyle && !hasClass) {
+                    while (span.firstChild) span.parentNode.insertBefore(span.firstChild, span);
+                    span.remove();
+                    domChanged = true;
+                }
+            });
         }
 
+        // Style all <a> tags
+        clone.querySelectorAll('a').forEach(a => {
+            const existing = a.getAttribute('style') || '';
+            a.setAttribute('style', mergeStyle(existing, PTKT_LINK_STYLE));
+        });
+
+        // Convert b/i → strong/em via innerHTML string pass
+        let html = clone.innerHTML;
+        html = convertInlineTags(html);
+        html = html.replace(/\r?\n/g, ' ').replace(/ {2,}/g, ' ');
+        html = html.replace(/&nbsp;/g, '\u00a0').trim();
+        html = html.replace(/(<br\s*\/?>)+$/gi, '');
+        return html;
+    }
+
+    function wrapBody(inner) {
+        if (!inner) return inner;
+        return `<span style="color: ${PTKT_BODY_COLOR}">${inner}</span>`;
+    }
+
+    function getWpAlign(el) {
+        const style = el.getAttribute('style') || '';
+        const alignAttr = el.getAttribute('align') || '';
+        const m = style.match(/text-align:\s*(justify|center|right|left)/i);
+        if (m) return m[1].toLowerCase();
+        if (/padding-left:/i.test(style) || /margin-left:/i.test(style)) return 'justify';
+        if (alignAttr) return alignAttr.toLowerCase();
+        return '';
+    }
+
+    function wpParagraphWp(innerHtml, align) {
+        let jsonParts = [];
+        let classList = [];
+        if (align === 'justify') {
+            jsonParts.push(`"className":"has-text-align-justify"`);
+            jsonParts.push(`"style":{"typography":{"textAlign":"justify"}}`);
+            classList.push('has-text-align-justify');
+        } else if (align && align !== 'left') {
+            jsonParts.push(`"style":{"typography":{"textAlign":"${align}"}}`);
+            classList.push('has-text-align-' + align);
+        }
+        const attrStr = jsonParts.length > 0 ? ' {' + jsonParts.join(',') + '}' : '';
+        const classStr = classList.length > 0 ? ' class="' + classList.join(' ') + '"' : '';
+        return `<!-- wp:paragraph${attrStr} -->\n<p${classStr}>${wrapBody(innerHtml)}</p>\n<!-- /wp:paragraph -->`;
+    }
+
+    function wpHeadingWp(innerHtml, level, align) {
+        let jsonParts = [];
+        if (level !== 2) jsonParts.push(`"level":${level}`);
+        if (align && align !== 'left') {
+            jsonParts.push(`"style":{"typography":{"textAlign":"${align}"}}`);
+        }
+        const attrStr = jsonParts.length > 0 ? ' {' + jsonParts.join(',') + '}' : '';
+        let classList = ['wp-block-heading'];
+        if (align && align !== 'left') classList.push('has-text-align-' + align);
+        const classStr = ' class="' + classList.join(' ') + '"';
+        return `<!-- wp:heading${attrStr} -->\n<h${level}${classStr}>${innerHtml}</h${level}>\n<!-- /wp:heading -->`;
+    }
+
+    function wpImagePlaceholder() {
+        return `<!-- wp:image -->\n<figure class="wp-block-image"><img alt=""/></figure>\n<!-- /wp:image -->`;
+    }
+
+    function wpUrlNote(url) {
+        return `<!-- wp:paragraph -->\n<p>${url}</p>\n<!-- /wp:paragraph -->`;
+    }
+
+    function wpSeparatorWp() {
+        return `<!-- wp:separator -->\n<hr class="wp-block-separator has-alpha-channel-opacity"/>\n<!-- /wp:separator -->`;
+    }
+
+    function wpListWp(node) {
+        const items = node.querySelectorAll(':scope > li');
+        let listItems = '';
+        items.forEach(li => {
+            const inner = processInlineWp(li);
+            if (inner.trim()) {
+                listItems += `<!-- wp:list-item -->\n<li>${wrapBody(inner)}</li>\n<!-- /wp:list-item -->\n`;
+            }
+        });
+        if (!listItems) return '';
+        const ordered = node.tagName.toLowerCase() === 'ol';
+        const blockName = ordered ? 'list {"ordered":true}' : 'list';
+        const listTag = ordered ? 'ol' : 'ul';
+        return `<!-- wp:${blockName} -->\n<${listTag} class="wp-block-list">${listItems}</${listTag}>\n<!-- /wp:list -->`;
+    }
+
+    function wpQuoteWp(node) {
+        const innerBlocks = [];
+        node.querySelectorAll(':scope > p').forEach(p => {
+            const inner = processInlineWp(p);
+            if (inner.trim()) innerBlocks.push(wpParagraphWp(inner, getWpAlign(p)));
+        });
+        if (innerBlocks.length === 0) {
+            const inner = processInlineWp(node);
+            if (inner.trim()) innerBlocks.push(wpParagraphWp(inner, ''));
+        }
+        return `<!-- wp:quote -->\n<blockquote class="wp-block-quote">${innerBlocks.join('\n')}</blockquote>\n<!-- /wp:quote -->`;
+    }
+
+    // Extract meaningful text after removing all <img>
+    function textWithoutImages(el) {
+        const clone = el.cloneNode(true);
+        clone.querySelectorAll('img').forEach(i => i.remove());
+        return clone.textContent.replace(/\u00a0/g, ' ').trim();
+    }
+
+    function processWpParagraph(node, blocks) {
+        const imgs = node.querySelectorAll('img');
+        if (imgs.length > 0) {
+            imgs.forEach(img => {
+                const src = img.getAttribute('src') || '';
+                blocks.push(wpImagePlaceholder());
+                if (src) blocks.push(wpUrlNote(src));
+                stats.images++;
+            });
+            const remainingText = textWithoutImages(node);
+            if (remainingText.length > 0) {
+                const clone = node.cloneNode(true);
+                clone.querySelectorAll('img').forEach(i => i.remove());
+                const inner = processInlineWp(clone);
+                if (inner.trim() && inner.replace(/&nbsp;|\u00a0|\s/g, '').length > 0) {
+                    blocks.push(wpParagraphWp(inner, getWpAlign(node)));
+                    stats.paragraphs++;
+                }
+            }
+            return;
+        }
+        const text = node.textContent.replace(/\u00a0/g, ' ').trim();
+        if (!text) return;
+        const inner = processInlineWp(node);
+        if (!inner.trim()) return;
+        blocks.push(wpParagraphWp(inner, getWpAlign(node)));
+        stats.paragraphs++;
+    }
+
+    function processWpFigure(node, blocks) {
+        const img = node.querySelector('img');
+        const figcaption = node.querySelector('figcaption');
+        if (img) {
+            const src = img.getAttribute('src') || '';
+            blocks.push(wpImagePlaceholder());
+            if (src) blocks.push(wpUrlNote(src));
+            stats.images++;
+        }
+        if (figcaption) {
+            const inner = processInlineWp(figcaption);
+            if (inner.trim()) {
+                blocks.push(wpParagraphWp(inner, 'center'));
+                stats.paragraphs++;
+            }
+        }
+    }
+
+    function walkWpElements(elements, blocks) {
+        for (const node of elements) {
+            if (node.nodeType === 3) continue;
+            if (node.nodeType !== 1) continue;
+            const tag = node.tagName.toLowerCase();
+
+            if (tag === 'script' || tag === 'style' || tag === 'noscript') continue;
+
+            if (/^h[1-6]$/.test(tag)) {
+                let level = parseInt(tag[1]);
+                if (level === 1) level = 2;
+                const inner = processInlineWp(node);
+                if (inner.trim()) {
+                    blocks.push(wpHeadingWp(inner, level, getWpAlign(node)));
+                    stats.headings++;
+                }
+                continue;
+            }
+
+            if (tag === 'p') { processWpParagraph(node, blocks); continue; }
+            if (tag === 'figure') { processWpFigure(node, blocks); continue; }
+
+            if (tag === 'img') {
+                const src = node.getAttribute('src') || '';
+                blocks.push(wpImagePlaceholder());
+                if (src) blocks.push(wpUrlNote(src));
+                stats.images++;
+                continue;
+            }
+
+            if (tag === 'ul' || tag === 'ol') {
+                const block = wpListWp(node);
+                if (block) { blocks.push(block); stats.lists++; }
+                continue;
+            }
+
+            if (tag === 'hr') { blocks.push(wpSeparatorWp()); stats.separators++; continue; }
+
+            if (tag === 'blockquote') { blocks.push(wpQuoteWp(node)); stats.paragraphs++; continue; }
+
+            if (tag === 'br') continue;
+
+            if (tag === 'div' || tag === 'section' || tag === 'article') {
+                walkWpElements(Array.from(node.childNodes), blocks);
+                continue;
+            }
+
+            // Unknown inline-ish element at top level → treat as paragraph
+            const inner = processInlineWp(node);
+            if (inner.trim()) {
+                blocks.push(wpParagraphWp(inner, getWpAlign(node)));
+                stats.paragraphs++;
+            }
+        }
+    }
+
+    function findContentRoot(doc) {
+        const selectors = [
+            'section.entry-content',
+            'article .entry-content',
+            'div.entry-content',
+            'article',
+            'main',
+            'div.post-content',
+            'div.clearfix'
+        ];
+        for (const sel of selectors) {
+            const el = doc.querySelector(sel);
+            if (el && el.textContent.trim().length > 50) return el;
+        }
+        return doc.body;
+    }
+
+    function convertWordPress(rawHtml) {
+        stats = { headings: 0, paragraphs: 0, images: 0, videos: 0, toggles: 0, more: 0, separators: 0, footnotes: 0, lists: 0 };
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(rawHtml, 'text/html');
+        const root = findContentRoot(doc);
+        const blocks = [];
+        walkWpElements(Array.from(root.childNodes), blocks);
+        blocks.push(CITATION_BLOCK);
+        return blocks.join('\n\n');
+    }
+
+    // ============================================================
+    // ======================= DISPATCH ==========================
+    // ============================================================
+
+    transformBtn.addEventListener('click', function() {
+        if (!inputText.value.trim()) {
+            showStatus('Paste HTML vào input trước.');
+            return;
+        }
         try {
-            const result = convert(inputText.value);
+            const source = getSource();
+            const result = source === 'wp' ? convertWordPress(inputText.value) : convertBlogger(inputText.value);
             outputText.value = result;
             copyBtn.disabled = false;
-
             const parts = [];
             if (stats.headings > 0) parts.push(stats.headings + ' heading');
             if (stats.paragraphs > 0) parts.push(stats.paragraphs + ' paragraph');
@@ -967,8 +1046,8 @@ document.addEventListener('DOMContentLoaded', function() {
             if (stats.more > 0) parts.push(stats.more + ' more');
             if (stats.separators > 0) parts.push(stats.separators + ' separator');
             if (stats.footnotes > 0) parts.push(stats.footnotes + ' footnote');
-
-            showStatus('Convert thành công! Blocks: ' + parts.join(', '));
+            if (stats.lists > 0) parts.push(stats.lists + ' list');
+            showStatus('Convert (' + source + ') thành công! Blocks: ' + parts.join(', '));
         } catch (e) {
             showStatus('Lỗi: ' + e.message);
             console.error(e);
