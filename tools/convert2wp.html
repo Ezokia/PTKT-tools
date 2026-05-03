@@ -676,6 +676,34 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function processBloggerParagraph(node) {
+        // If paragraph contains a tr-caption-container table (Blogger image), extract as image block
+        const captionTable = node.querySelector('table.tr-caption-container');
+        if (captionTable) {
+            const img = captionTable.querySelector('img');
+            if (img) {
+                let src = img.getAttribute('src') || '';
+                src = src.replace(/=w\d+(-h\d+)?$/, '=s16000');
+                src = src.replace(/=s\d+$/, '=s16000');
+                // Get first non-empty tr-caption td text as caption
+                let caption = '';
+                captionTable.querySelectorAll('td.tr-caption').forEach(td => {
+                    const t = td.textContent.trim();
+                    if (!caption && t) caption = t;
+                });
+                stats.images++;
+                return wpImage(src, '', caption, 'center', '', '');
+            }
+        }
+        // If paragraph contains a standalone img (no wrapping table), extract as image block
+        const directImg = node.querySelector('img');
+        if (directImg) {
+            let src = directImg.getAttribute('src') || '';
+            src = src.replace(/=w\d+(-h\d+)?$/, '=s16000');
+            src = src.replace(/=s\d+$/, '=s16000');
+            const alt = directImg.getAttribute('alt') || '';
+            stats.images++;
+            return wpImage(src, alt, '', 'center', '', '');
+        }
         const textAlign = getTextAlign(node);
         const paddingLeft = getPaddingLeft(node);
         if (isBoldOnlyParagraph(node)) {
