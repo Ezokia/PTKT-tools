@@ -850,13 +850,15 @@ document.addEventListener('DOMContentLoaded', function() {
     function wpParagraphWp(innerHtml, align) {
         let jsonParts = [];
         let classList = [];
-        if (align === 'justify') {
+        // Auto-justify normal paragraphs in PTKT style (default behavior for body text)
+        const finalAlign = align === '' || align === 'left' ? 'justify' : align;
+        if (finalAlign === 'justify') {
             jsonParts.push(`"className":"has-text-align-justify"`);
             jsonParts.push(`"style":{"typography":{"textAlign":"justify"}}`);
             classList.push('has-text-align-justify');
-        } else if (align && align !== 'left') {
-            jsonParts.push(`"style":{"typography":{"textAlign":"${align}"}}`);
-            classList.push('has-text-align-' + align);
+        } else if (finalAlign && finalAlign !== 'left') {
+            jsonParts.push(`"style":{"typography":{"textAlign":"${finalAlign}"}}`);
+            classList.push('has-text-align-' + finalAlign);
         }
         const attrStr = jsonParts.length > 0 ? ' {' + jsonParts.join(',') + '}' : '';
         const classStr = classList.length > 0 ? ' class="' + classList.join(' ') + '"' : '';
