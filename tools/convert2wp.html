@@ -116,6 +116,11 @@
             margin-bottom: 16px;
             display: none;
         }
+        .status.warning {
+            background-color: #fff8e1;
+            color: #7a4f00;
+            border-left: 4px solid #f5a623;
+        }
         .stats {
             font-size: 13px;
             color: #666;
@@ -193,8 +198,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     let stats = { headings: 0, paragraphs: 0, images: 0, videos: 0, toggles: 0, more: 0, separators: 0, footnotes: 0, lists: 0 };
 
-    function showStatus(msg) {
+    function showStatus(msg, type) {
         statusMessage.textContent = msg;
+        statusMessage.className = 'status' + (type ? ' ' + type : '');
         statusMessage.style.display = 'block';
     }
 
@@ -746,10 +752,72 @@ document.addEventListener('DOMContentLoaded', function() {
     const PTKT_LINK_STYLE = 'color: #C00000; text-decoration: underline';
     const PTKT_BODY_COLOR = '#393939';
 
-    function buildCitationBlock(sourceUrl, h1Title) {
+    const VI_MONTHS = ['Tháng Một','Tháng Hai','Tháng Ba','Tháng Tư','Tháng Năm','Tháng Sáu',
+                       'Tháng Bảy','Tháng Tám','Tháng Chín','Tháng Mười','Tháng Mười Một','Tháng Mười Hai'];
+
+    // Format a Date as "D Tháng M, YYYY" (matches the WP Vietnamese display style).
+    function formatViDate(d) {
+        if (!d || isNaN(d.getTime())) return '';
+        return `${d.getDate()} ${VI_MONTHS[d.getMonth()]}, ${d.getFullYear()}`;
+    }
+
+    // Try to find a published/modified date in the parsed WP HTML. Returns formatted string or ''.
+    function extractPublishDate(doc) {
+        // 1) <time datetime="..."> — most reliable, use the ISO attr
+        const timeEls = doc.querySelectorAll('time');
+        for (const t of timeEls) {
+            const dt = t.getAttribute('datetime');
+            if (dt) {
+                const d = new Date(dt);
+                if (!isNaN(d.getTime())) return formatViDate(d);
+            }
+        }
+        // 2) <meta property="article:published_time"> / modified_time
+        const metaSelectors = [
+            'meta[property="article:published_time"]',
+            'meta[property="article:modified_time"]',
+            'meta[name="date"]',
+            'meta[name="pubdate"]',
+            'meta[itemprop="datePublished"]',
+            'meta[itemprop="dateModified"]'
+        ];
+        for (const sel of metaSelectors) {
+            const m = doc.querySelector(sel);
+            if (m) {
+                const c = m.getAttribute('content');
+                if (c) {
+                    const d = new Date(c);
+                    if (!isNaN(d.getTime())) return formatViDate(d);
+                }
+            }
+        }
+        // 3) <time> textContent fallback (already Vietnamese in many WP themes)
+        for (const t of timeEls) {
+            const txt = (t.textContent || '').trim();
+            if (txt) return txt;
+        }
+        // 4) Common class-name fallbacks
+        const classSelectors = ['.published', '.entry-date', '.post-date', '.posted-on', '.date', '.updated'];
+        for (const sel of classSelectors) {
+            const el = doc.querySelector(sel);
+            if (el) {
+                const dt = el.getAttribute('datetime');
+                if (dt) {
+                    const d = new Date(dt);
+                    if (!isNaN(d.getTime())) return formatViDate(d);
+                }
+                const txt = (el.textContent || '').trim();
+                if (txt) return txt;
+            }
+        }
+        return '';
+    }
+
+    function buildCitationBlock(sourceUrl, h1Title, dateStr) {
         let href = sourceUrl || '';
         let title = h1Title || '[Tiêu đề bài viết]';
         let siteName = '[Tên site]';
+        let datePart = dateStr || '[Ngày tháng năm]';
         if (href) {
             try {
                 const u = new URL(href);
@@ -757,7 +825,7 @@ document.addEventListener('DOMContentLoaded', function() {
             } catch (e) { /* leave placeholder */ }
         }
         return `<!-- wp:paragraph {"className":"has-text-align-justify","style":{"typography":{"textAlign":"justify"}}} -->\n` +
-            `<p class="has-text-align-justify"><strong><span>Nguồn bài viết: <u><a href="${href}">${title}</a></u></span></strong><span>, <em>${siteName}</em>, [Ngày tháng năm].</span></p>\n` +
+            `<p class="has-text-align-justify"><strong><span>Nguồn bài viết: <u><a href="${href}">${title}</a></u></span></strong><span>, <em>${siteName}</em>, ${datePart}.</span></p>\n` +
             `<!-- /wp:paragraph -->`;
     }
 
@@ -833,10 +901,25 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
 
-        // Style all <a> tags: internal (phantichkinhte123) → red + underline; external → underline only
+        // Style all <a> tags:
+        //   - Footnote body ref (href="#_ftnN", name="_ftnrefN")  → no underline + wrap in <sup>
+        //   - Footnote end def  (href="#_ftnrefN", name="_ftnN") → no underline, no sup
+        //   - Internal (phantichkinhte123) → red + underline
+        //   - External → underline only
         clone.querySelectorAll('a').forEach(a => {
             const href = a.getAttribute('href') || '';
             const existing = a.getAttribute('style') || '';
+            const isFootnoteBody = /^#_ftn\d+$/i.test(href);
+            const isFootnoteEnd  = /^#_ftnref\d+$/i.test(href);
+            if (isFootnoteBody || isFootnoteEnd) {
+                a.setAttribute('style', mergeStyle(existing, 'text-decoration: none'));
+                if (isFootnoteBody) {
+                    const sup = clone.ownerDocument.createElement('sup');
+                    a.parentNode.insertBefore(sup, a);
+                    sup.appendChild(a);
+                }
+                return;
+            }
             const linkStyle = href.includes('phantichkinhte123')
                 ? PTKT_LINK_STYLE
                 : 'text-decoration: underline';
@@ -1076,13 +1159,31 @@ document.addEventListener('DOMContentLoaded', function() {
         const h1El = doc.querySelector('h1');
         const h1Title = h1El ? h1El.textContent.trim() : '';
         const sourceUrl = (document.getElementById('sourceUrl') || {}).value || '';
-        blocks.push(buildCitationBlock(sourceUrl, h1Title));
+        const pubDate = extractPublishDate(doc);
+        blocks.push(buildCitationBlock(sourceUrl, h1Title, pubDate));
         return blocks.join('\n\n');
     }
 
     // ============================================================
     // ======================= DISPATCH ==========================
     // ============================================================
+
+    function checkDuplicateFootnoteNames(rawHtml) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(rawHtml, 'text/html');
+        const seen = {};
+        const dupes = [];
+        doc.querySelectorAll('a[name]').forEach(a => {
+            const name = a.getAttribute('name');
+            if (!/^_ftn|^_edn/i.test(name)) return;
+            if (seen[name]) {
+                if (!dupes.includes(name)) dupes.push(name);
+            } else {
+                seen[name] = true;
+            }
+        });
+        return dupes;
+    }
 
     transformBtn.addEventListener('click', function() {
         if (!inputText.value.trim()) {
@@ -1091,6 +1192,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         try {
             const source = getSource();
+
+            const dupes = source === 'wp' ? checkDuplicateFootnoteNames(inputText.value) : [];
+
             const result = source === 'wp' ? convertWordPress(inputText.value) : convertBlogger(inputText.value);
             outputText.value = result;
             copyBtn.disabled = false;
@@ -1104,7 +1208,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (stats.separators > 0) parts.push(stats.separators + ' separator');
             if (stats.footnotes > 0) parts.push(stats.footnotes + ' footnote');
             if (stats.lists > 0) parts.push(stats.lists + ' list');
-            showStatus('Convert (' + source + ') thành công! Blocks: ' + parts.join(', '));
+            if (dupes.length > 0) {
+                showStatus('⚠️ Footnote name bị trùng: ' + dupes.join(', ') + ' — kiểm tra lại! (Convert xong: ' + parts.join(', ') + ')', 'warning');
+            } else {
+                showStatus('Convert (' + source + ') thành công! Blocks: ' + parts.join(', '));
+            }
         } catch (e) {
             showStatus('Lỗi: ' + e.message);
             console.error(e);
