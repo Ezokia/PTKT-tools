@@ -173,14 +173,8 @@
             border: 1px solid #e0e0e0;
             vertical-align: top;
         }
-        .pair-table td.role {
-            white-space: nowrap;
-            font-weight: 500;
-            color: #444;
-            width: 110px;
-        }
-        .pair-table td.role.body-ref { border-left: 3px solid #1b3a5c; }
-        .pair-table td.role.end-def  { border-left: 3px solid #c89b3c; }
+        .pair-table td.body-ref { border-left: 3px solid #1b3a5c; }
+        .pair-table td.end-def  { border-left: 3px solid #c89b3c; }
         .pair-table td code {
             font-family: monospace;
             font-size: 11px;
@@ -493,7 +487,7 @@
                     html += `<div class="conflict-group">`;
                     html += `<div class="conflict-header">`;
                     html += `Trùng <code>name="${escHtml(dupeName)}"</code>`;
-                    if (partnerAnchors.length) html += ` — anchor đối ứng <code>name="${escHtml(partnerName)}"</code>`;
+                    if (partnerAnchors.length) html += ` — chú thích đối ứng <code>name="${escHtml(partnerName)}"</code>`;
                     html += ` &nbsp;(${dupeAnchors.length} lần dùng cùng 1 name)`;
                     html += `</div>`;
 
@@ -511,13 +505,12 @@
                         html += `</div>`;
 
                         html += `<table class="pair-table">`;
-                        html += `<tr><th>Vai trò</th><th>Anchor</th><th>Vị trí</th></tr>`;
+                        html += `<tr><th>Anchor</th><th>Vị trí</th></tr>`;
 
                         if (refA) {
                             const outer = refA.outerHTML;
                             html += `<tr>`;
-                            html += `<td class="role ${isBodyRef ? 'body-ref' : 'end-def'}">${selfLabel}</td>`;
-                            html += `<td><code>${escHtml(outer)}</code></td>`;
+                            html += `<td class="${isBodyRef ? 'body-ref' : 'end-def'}"><code>${escHtml(outer)}</code></td>`;
                             html += `<td class="ctx">${getContext(raw, outer, 35)}</td>`;
                             html += `</tr>`;
                         }
@@ -525,12 +518,11 @@
                         if (counterA) {
                             const outer = counterA.outerHTML;
                             html += `<tr>`;
-                            html += `<td class="role ${isBodyRef ? 'end-def' : 'body-ref'}">${counterpartLabel}</td>`;
-                            html += `<td><code>${escHtml(outer)}</code></td>`;
+                            html += `<td class="${isBodyRef ? 'end-def' : 'body-ref'}"><code>${escHtml(outer)}</code></td>`;
                             html += `<td class="ctx">${getContext(raw, outer, 35)}</td>`;
                             html += `</tr>`;
                         } else {
-                            html += `<tr><td colspan="3" style="font-size:11px;color:#c00;padding:4px 8px;">Không tìm thấy anchor đối ứng <code>${escHtml(partnerName)}</code> — có thể anchor chỉ có <code>href</code> mà không có <code>name</code>, kiểm tra thủ công.</td></tr>`;
+                            html += `<tr><td colspan="2" style="font-size:11px;color:#c00;padding:4px 8px;">Không tìm thấy chú thích đối ứng <code>${escHtml(partnerName)}</code> — có thể anchor chỉ có <code>href</code> mà không có <code>name</code>, kiểm tra thủ công.</td></tr>`;
                         }
 
                         html += `</table>`;
