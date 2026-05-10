@@ -112,6 +112,111 @@
             margin-bottom: 16px;
             display: none;
         }
+        .divider {
+            border: none;
+            border-top: 2px solid #e0ddd5;
+            margin: 28px 0;
+        }
+        .checker-section h2 {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 12px;
+            color: #1b3a5c;
+        }
+        #checkReport {
+            display: none;
+            margin-top: 16px;
+        }
+        .conflict-group {
+            border: 1px solid #e0c97a;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        .conflict-header {
+            background: #fff8e1;
+            padding: 8px 12px;
+            font-weight: bold;
+            font-size: 13px;
+            color: #7a4f00;
+            border-bottom: 1px solid #e0c97a;
+        }
+        .pair-block {
+            padding: 8px 12px 10px;
+            border-bottom: 1px solid #f0ead8;
+        }
+        .pair-block:last-child { border-bottom: none; }
+        .pair-label {
+            font-weight: bold;
+            font-size: 12px;
+            color: #555;
+            margin-bottom: 6px;
+        }
+        .pair-label.canonical { color: #2a7a2a; }
+        .pair-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        .pair-table th {
+            text-align: left;
+            font-weight: 600;
+            font-size: 11px;
+            color: #888;
+            padding: 3px 8px;
+            background: #f9f9f9;
+            border: 1px solid #e0e0e0;
+            white-space: nowrap;
+        }
+        .pair-table td {
+            padding: 4px 8px;
+            border: 1px solid #e0e0e0;
+            vertical-align: top;
+        }
+        .pair-table td.role {
+            white-space: nowrap;
+            font-weight: 500;
+            color: #444;
+            width: 110px;
+        }
+        .pair-table td.role.body-ref { border-left: 3px solid #1b3a5c; }
+        .pair-table td.role.end-def  { border-left: 3px solid #c89b3c; }
+        .pair-table td code {
+            font-family: monospace;
+            font-size: 11px;
+            word-break: break-all;
+            background: #f5f5f5;
+            padding: 1px 3px;
+            border-radius: 2px;
+        }
+        .pair-table td.ctx {
+            font-size: 11px;
+            color: #888;
+            max-width: 220px;
+        }
+        .fix-hint {
+            font-size: 12px;
+            color: #555;
+            background: #f0f4ff;
+            border-left: 3px solid #6a8fd8;
+            padding: 5px 10px;
+            margin-top: 6px;
+            border-radius: 0 4px 4px 0;
+        }
+        .fix-hint code {
+            background: #e0e8ff;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 11px;
+        }
+        .no-dupes {
+            color: #2a7a2a;
+            font-weight: bold;
+            padding: 12px;
+            background: #eafaea;
+            border-radius: 6px;
+        }
     </style>
 </head>
 <body>
@@ -184,6 +289,22 @@
         </div>
 
         <button id="copyBtn" class="success" disabled>Copy to Clipboard</button>
+
+        <hr class="divider">
+
+        <div class="checker-section">
+            <h2>Check Duplicate Footnote IDs</h2>
+            <p style="font-size:13px;color:#555;margin-bottom:12px;">
+                Paste HTML (already linked) here to scan for anchors sharing the same <code>name</code>.
+                The report shows every anchor you need to edit together — body ref, end def, and their <code>href</code> counterparts.
+            </p>
+            <div class="form-group">
+                <label for="checkInput">Input HTML (linked footnotes):</label>
+                <textarea id="checkInput" placeholder="Paste linked HTML here..."></textarea>
+            </div>
+            <button id="checkBtn" class="primary">Check Duplicates</button>
+            <div id="checkReport"></div>
+        </div>
     </div>
 
     <script>
@@ -296,6 +417,144 @@
             function hideStatus() {
                 statusMessage.style.display = 'none';
             }
+
+            // ── Duplicate Checker ──────────────────────────────────────
+            const checkBtn    = document.getElementById('checkBtn');
+            const checkInput  = document.getElementById('checkInput');
+            const checkReport = document.getElementById('checkReport');
+
+            function getContext(rawHtml, anchorOuterHtml, chars) {
+                const idx = rawHtml.indexOf(anchorOuterHtml);
+                if (idx === -1) return '';
+                const before = rawHtml.slice(Math.max(0, idx - chars), idx).replace(/</g, '&lt;');
+                const after  = rawHtml.slice(idx + anchorOuterHtml.length, idx + anchorOuterHtml.length + chars).replace(/</g, '&lt;');
+                return `...${before}<strong>${anchorOuterHtml.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</strong>${after}...`;
+            }
+
+            function escHtml(s) {
+                return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+            }
+
+            checkBtn.addEventListener('click', function() {
+                const raw = checkInput.value;
+                if (!raw.trim()) {
+                    checkReport.style.display = 'block';
+                    checkReport.innerHTML = '<p style="color:#c00">Paste HTML trước.</p>';
+                    return;
+                }
+
+                const parser = new DOMParser();
+                const doc    = parser.parseFromString(raw, 'text/html');
+
+                // Collect all footnote anchors (has name or href matching _ftn/_edn pattern)
+                const all = Array.from(doc.querySelectorAll('a[name], a[href]')).filter(a => {
+                    const n = a.getAttribute('name') || '';
+                    const h = a.getAttribute('href') || '';
+                    return /^_ftn|^_edn/i.test(n) || /^#_ftn|^#_edn/i.test(h);
+                });
+
+                // Group by name value — find which names are duplicated
+                const byName = {};
+                all.forEach(a => {
+                    const n = a.getAttribute('name');
+                    if (!n) return;
+                    if (!byName[n]) byName[n] = [];
+                    byName[n].push(a);
+                });
+
+                const dupeNames = Object.keys(byName).filter(n => byName[n].length > 1);
+
+                if (dupeNames.length === 0) {
+                    checkReport.style.display = 'block';
+                    checkReport.innerHTML = '<div class="no-dupes">Không phát hiện name bị trùng. HTML footnote OK.</div>';
+                    return;
+                }
+
+                // For each dupe name, build pairs: each body-ref occurrence + its matching end/inline def
+                let html = '';
+
+                dupeNames.forEach(dupeName => {
+                    const isBodyRef = /^_ftnref|^_ednref/i.test(dupeName);
+                    // The partner name (body↔end)
+                    const partnerName = isBodyRef
+                        ? dupeName.replace(/^_ftnref/i, '_ftn').replace(/^_ednref/i, '_edn')
+                        : dupeName.replace(/^_ftn(?!ref)/i, '_ftnref').replace(/^_edn(?!ref)/i, '_ednref');
+
+                    const dupeAnchors   = byName[dupeName] || [];
+                    const partnerAnchors = byName[partnerName] || [];
+
+                    // Build pairs by index — pair dupe[0] with partner[0], dupe[1] with partner[1], etc.
+                    // If counts differ, leftover have no partner found
+                    const pairCount = Math.max(dupeAnchors.length, partnerAnchors.length);
+
+                    const counterpartLabel = isBodyRef ? 'END / INLINE DEF' : 'BODY REF';
+                    const selfLabel        = isBodyRef ? 'BODY REF' : 'END DEF';
+
+                    html += `<div class="conflict-group">`;
+                    html += `<div class="conflict-header">`;
+                    html += `Trùng <code>name="${escHtml(dupeName)}"</code>`;
+                    if (partnerAnchors.length) html += ` — anchor đối ứng <code>name="${escHtml(partnerName)}"</code>`;
+                    html += ` &nbsp;(${dupeAnchors.length} lần dùng cùng 1 name)`;
+                    html += `</div>`;
+
+                    for (let i = 0; i < pairCount; i++) {
+                        const refA     = dupeAnchors[i];
+                        const counterA = partnerAnchors[i];
+                        const label    = refA ? (refA.textContent.trim() || `#${i+1}`) : `#${i+1}`;
+                        const isFirst  = (i === 0);
+
+                        html += `<div class="pair-block">`;
+                        html += `<div class="pair-label ${isFirst ? 'canonical' : ''}">`;
+                        html += isFirst
+                            ? `Cặp ${i+1} — "${escHtml(label)}" (giữ nguyên)`
+                            : `Cặp ${i+1} — "${escHtml(label)}" (cần sửa)`;
+                        html += `</div>`;
+
+                        html += `<table class="pair-table">`;
+                        html += `<tr><th>Vai trò</th><th>Anchor</th><th>Vị trí</th></tr>`;
+
+                        if (refA) {
+                            const outer = refA.outerHTML;
+                            html += `<tr>`;
+                            html += `<td class="role ${isBodyRef ? 'body-ref' : 'end-def'}">${selfLabel}</td>`;
+                            html += `<td><code>${escHtml(outer)}</code></td>`;
+                            html += `<td class="ctx">${getContext(raw, outer, 35)}</td>`;
+                            html += `</tr>`;
+                        }
+
+                        if (counterA) {
+                            const outer = counterA.outerHTML;
+                            html += `<tr>`;
+                            html += `<td class="role ${isBodyRef ? 'end-def' : 'body-ref'}">${counterpartLabel}</td>`;
+                            html += `<td><code>${escHtml(outer)}</code></td>`;
+                            html += `<td class="ctx">${getContext(raw, outer, 35)}</td>`;
+                            html += `</tr>`;
+                        } else {
+                            html += `<tr><td colspan="3" style="font-size:11px;color:#c00;padding:4px 8px;">Không tìm thấy anchor đối ứng <code>${escHtml(partnerName)}</code> — có thể anchor chỉ có <code>href</code> mà không có <code>name</code>, kiểm tra thủ công.</td></tr>`;
+                        }
+
+                        html += `</table>`;
+
+                        if (!isFirst) {
+                            const slug = label.replace(/^\[|\]$/g, '').trim() || `x${i+1}`;
+                            const newRef = isBodyRef ? `_ftnref${slug}` : `_ftn${slug}`;
+                            const newDef = isBodyRef ? `_ftn${slug}`    : `_ftnref${slug}`;
+                            html += `<div class="fix-hint">`;
+                            html += `Gợi ý: đổi <code>${escHtml(dupeName)}</code> thành <code>${escHtml(newRef)}</code>`;
+                            html += ` và <code>${escHtml(partnerName)}</code> thành <code>${escHtml(newDef)}</code>`;
+                            html += ` (cập nhật cả <code>name</code> lẫn <code>href</code> trên cả 2 anchor)`;
+                            html += `</div>`;
+                        }
+
+                        html += `</div>`; // pair-block
+                    }
+
+                    html += `</div>`; // conflict-group
+                });
+
+                checkReport.style.display = 'block';
+                checkReport.innerHTML = html;
+            });
         });
     </script>
 </body>
