@@ -483,12 +483,33 @@
                         ? dupeName.replace(/^_ftnref/i, '_ftn').replace(/^_ednref/i, '_edn')
                         : dupeName.replace(/^_ftn(?!ref)/i, '_ftnref').replace(/^_edn(?!ref)/i, '_ednref');
 
-                    const dupeAnchors   = byName[dupeName] || [];
+                    const dupeAnchors    = byName[dupeName] || [];
                     const partnerAnchors = byName[partnerName] || [];
 
-                    // Build pairs by index — pair dupe[0] with partner[0], dupe[1] with partner[1], etc.
-                    // If counts differ, leftover have no partner found
-                    const pairCount = Math.max(dupeAnchors.length, partnerAnchors.length);
+                    // Build pairs by matching textContent — body [1] pairs with end def [1],
+                    // body [a] with end def [a], etc. (NOT by index, which would mismatch
+                    // when authors reuse the same name= for different visible labels.)
+                    const usedPartners = new Set();
+                    const pairs = dupeAnchors.map(refA => {
+                        const refText = (refA.textContent || '').trim();
+                        // Find first unused partner with matching text
+                        const counterA = partnerAnchors.find((p, idx) => {
+                            if (usedPartners.has(idx)) return false;
+                            return (p.textContent || '').trim() === refText;
+                        });
+                        if (counterA) usedPartners.add(partnerAnchors.indexOf(counterA));
+                        return { refA, counterA, label: refText || '?' };
+                    });
+                    // Group pairs by label — first occurrence of each label is canonical (keep),
+                    // duplicate-text pairs (multi-ref to same note) and other-text pairs need fixing.
+                    const seenLabels = new Set();
+                    pairs.forEach(p => {
+                        p.isFirstOfLabel = !seenLabels.has(p.label);
+                        seenLabels.add(p.label);
+                    });
+                    // Canonical pair = the very first pair overall (label seen first wins as the
+                    // legitimate owner of this name=). All others must be renamed.
+                    const canonicalLabel = pairs.length ? pairs[0].label : null;
 
                     const counterpartLabel = isBodyRef ? 'END / INLINE DEF' : 'BODY REF';
                     const selfLabel        = isBodyRef ? 'BODY REF' : 'END DEF';
@@ -500,11 +521,11 @@
                     html += ` &nbsp;(${dupeAnchors.length} lần dùng cùng 1 name)`;
                     html += `</div>`;
 
-                    for (let i = 0; i < pairCount; i++) {
-                        const refA     = dupeAnchors[i];
-                        const counterA = partnerAnchors[i];
-                        const label    = refA ? (refA.textContent.trim() || `#${i+1}`) : `#${i+1}`;
-                        const isFirst  = (i === 0);
+                    for (let i = 0; i < pairs.length; i++) {
+                        const { refA, counterA, label } = pairs[i];
+                        // A pair is "kept" only if it's the very first occurrence of the canonical label.
+                        // Subsequent same-label pairs (multi-ref) and any different-label pairs must change.
+                        const isFirst = (i === 0) && (label === canonicalLabel);
 
                         html += `<div class="pair-block">`;
                         html += `<div class="pair-label ${isFirst ? 'canonical' : ''}">`;
