@@ -456,7 +456,16 @@
                     byName[n].push(a);
                 });
 
-                const dupeNames = Object.keys(byName).filter(n => byName[n].length > 1);
+                const allDupeNames = Object.keys(byName).filter(n => byName[n].length > 1);
+                // Deduplicate: each body↔end pair should appear only once.
+                // Keep _ftnref* / _ednref* (body side); drop _ftn* / _edn* if its body counterpart is already in the list.
+                const dupeNames = allDupeNames.filter(n => {
+                    if (/^_ftn(?!ref)|^_edn(?!ref)/i.test(n)) {
+                        const bodyVersion = n.replace(/^_ftn(?!ref)/i, '_ftnref').replace(/^_edn(?!ref)/i, '_ednref');
+                        return !allDupeNames.includes(bodyVersion);
+                    }
+                    return true;
+                });
 
                 if (dupeNames.length === 0) {
                     checkReport.style.display = 'block';
