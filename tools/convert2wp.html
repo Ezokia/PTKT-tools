@@ -162,6 +162,11 @@
         <textarea id="inputText" placeholder="Paste HTML từ Blogger vào đây..."></textarea>
     </div>
 
+    <div class="form-group" id="sourceUrlGroup" style="display:none">
+        <label for="sourceUrl">URL bài gốc:</label>
+        <input type="url" id="sourceUrl" placeholder="https://example.com/bai-viet..." style="width:100%;box-sizing:border-box;padding:6px 8px;font-size:14px;border:1px solid #ccc;border-radius:4px;">
+    </div>
+
     <button id="transformBtn" class="primary">Convert to WordPress</button>
 
     <div id="statusMessage" class="status"></div>
@@ -198,6 +203,9 @@ document.addEventListener('DOMContentLoaded', function() {
         return r ? r.value : 'blogger';
     }
 
+    const sourceUrlGroup = document.getElementById('sourceUrlGroup');
+    const sourceUrlInput = document.getElementById('sourceUrl');
+
     function updateUIForSource() {
         const src = getSource();
         if (src === 'blogger') {
@@ -205,11 +213,13 @@ document.addEventListener('DOMContentLoaded', function() {
             instrWp.style.display = 'none';
             inputLabel.textContent = 'Input HTML (Blogger):';
             inputText.placeholder = 'Paste HTML từ Blogger vào đây...';
+            sourceUrlGroup.style.display = 'none';
         } else {
             instrBlogger.style.display = 'none';
             instrWp.style.display = 'block';
             inputLabel.textContent = 'Input HTML (WordPress khác):';
             inputText.placeholder = 'Paste HTML raw từ WordPress khác / CMS vào đây...';
+            sourceUrlGroup.style.display = 'block';
         }
     }
     sourceRadios.forEach(r => r.addEventListener('change', updateUIForSource));
@@ -736,10 +746,20 @@ document.addEventListener('DOMContentLoaded', function() {
     const PTKT_LINK_STYLE = 'color: #C00000; text-decoration: underline';
     const PTKT_BODY_COLOR = '#393939';
 
-    const CITATION_BLOCK =
-        `<!-- wp:paragraph {"className":"has-text-align-justify","style":{"typography":{"textAlign":"justify"}}} -->\n` +
-        `<p class="has-text-align-justify"><strong><span>Nguồn bài viết: <u><a href="">[Tiêu đề bài viết]</a></u></span></strong><span>, <em>[Tên site]</em>, [Ngày tháng năm].</span></p>\n` +
-        `<!-- /wp:paragraph -->`;
+    function buildCitationBlock(sourceUrl, h1Title) {
+        let href = sourceUrl || '';
+        let title = h1Title || '[Tiêu đề bài viết]';
+        let siteName = '[Tên site]';
+        if (href) {
+            try {
+                const u = new URL(href);
+                siteName = u.hostname.replace(/^www\./, '');
+            } catch (e) { /* leave placeholder */ }
+        }
+        return `<!-- wp:paragraph {"className":"has-text-align-justify","style":{"typography":{"textAlign":"justify"}}} -->\n` +
+            `<p class="has-text-align-justify"><strong><span>Nguồn bài viết: <u><a href="${href}">${title}</a></u></span></strong><span>, <em>${siteName}</em>, [Ngày tháng năm].</span></p>\n` +
+            `<!-- /wp:paragraph -->`;
+    }
 
     // Merge a CSS declaration into an existing style string (idempotent for color/text-decoration keys).
     function mergeStyle(existing, additions) {
@@ -1053,7 +1073,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const root = findContentRoot(doc);
         const blocks = [];
         walkWpElements(Array.from(root.childNodes), blocks);
-        blocks.push(CITATION_BLOCK);
+        const h1El = doc.querySelector('h1');
+        const h1Title = h1El ? h1El.textContent.trim() : '';
+        const sourceUrl = (document.getElementById('sourceUrl') || {}).value || '';
+        blocks.push(buildCitationBlock(sourceUrl, h1Title));
         return blocks.join('\n\n');
     }
 
