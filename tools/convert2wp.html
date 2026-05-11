@@ -1230,7 +1230,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const downloadBtn = document.createElement('button');
             downloadBtn.textContent = 'Download';
             downloadBtn.style.cssText = 'padding: 6px 12px; background-color: #1b3a5c; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 12px; white-space: nowrap;';
-            downloadBtn.addEventListener('click', () => downloadImage(url, filename));
+            downloadBtn.addEventListener('click', () => downloadImage(url, filename, downloadBtn));
             downloadBtn.addEventListener('mouseover', () => downloadBtn.style.backgroundColor = '#142d47');
             downloadBtn.addEventListener('mouseout', () => downloadBtn.style.backgroundColor = '#1b3a5c');
             row.appendChild(urlSpan);
@@ -1240,14 +1240,41 @@ document.addEventListener('DOMContentLoaded', function() {
         imagesSection.style.display = 'block';
     }
 
-    function downloadImage(url, filename) {
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = filename;
-        link.target = '_blank';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+    function downloadImage(url, filename, btn) {
+        const baseName = filename.replace(/\.[^.]+$/, '');
+        const jpgFilename = baseName + '.jpg';
+        btn.textContent = 'Downloading...';
+        btn.disabled = true;
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = function() {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0);
+            canvas.toBlob(function(blob) {
+                const blobUrl = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = blobUrl;
+                link.download = jpgFilename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(blobUrl);
+                btn.textContent = 'Download';
+                btn.disabled = false;
+            }, 'image/jpeg', 0.92);
+        };
+        img.onerror = function() {
+            // CORS blocked — fall back to opening in new tab
+            btn.textContent = 'Download';
+            btn.disabled = false;
+            window.open(url, '_blank');
+        };
+        img.src = url;
     }
 
     transformBtn.addEventListener('click', function() {
