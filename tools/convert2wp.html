@@ -985,8 +985,13 @@ document.addEventListener('DOMContentLoaded', function() {
         return `<!-- wp:image -->\n<figure class="wp-block-image"><img alt=""/></figure>\n<!-- /wp:image -->`;
     }
 
+    function trimImageUrl(url) {
+        if (!url) return url;
+        return url.split('?')[0];
+    }
+
     function wpUrlNote(url) {
-        return `<!-- wp:paragraph -->\n<p>${url}</p>\n<!-- /wp:paragraph -->`;
+        return `<!-- wp:paragraph -->\n<p>${trimImageUrl(url)}</p>\n<!-- /wp:paragraph -->`;
     }
 
     function wpSeparatorWp() {
