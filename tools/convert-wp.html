@@ -148,7 +148,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const transformBtn = document.getElementById('transformBtn');
     const copyBtn = document.getElementById('copyBtn');
 
-    let stats = { headings: 0, paragraphs: 0, images: 0, videos: 0, more: 0, separators: 0, lists: 0 };
+    let stats = { headings: 0, paragraphs: 0, images: 0, videos: 0, more: 0, separators: 0, lists: 0, quotes: 0 };
 
     function showStatus(msg) {
         statusMessage.textContent = msg;
@@ -268,6 +268,28 @@ document.addEventListener('DOMContentLoaded', function () {
         let content = convertInnerHtml(innerHtml);
         content = wrapVerdana(content);
         return `<p class="MsoNormal"${styleAttr}>${content}</p>`;
+    }
+
+    // Recursively convert inner wp:* blocks of a quote/pullquote and wrap in <blockquote>.
+    // Falls back to raw blockquote contents if no inner wp:* blocks are present.
+    function buildQuote(content) {
+        const innerBlocks = parseWpBlocks(content);
+        let inner = '';
+        if (innerBlocks.length > 0) {
+            inner = innerBlocks.map(b => convertBlock(b, false)).filter(Boolean).join('\n');
+        } else {
+            // No nested blocks — strip outer <blockquote> wrapper if present and convert paragraphs found inside.
+            const parser = new DOMParser();
+            const doc = parser.parseFromString('<div>' + content + '</div>', 'text/html');
+            const bq = doc.querySelector('blockquote') || doc.querySelector('div');
+            const ps = bq.querySelectorAll('p');
+            if (ps.length > 0) {
+                inner = Array.from(ps).map(p => buildParagraph(p.innerHTML, 'justify')).join('\n');
+            } else {
+                inner = buildParagraph(bq.innerHTML, 'justify');
+            }
+        }
+        return `<blockquote style="text-align: justify;">\n${inner}\n</blockquote>`;
     }
 
     function buildImageTable(src, caption) {
@@ -409,6 +431,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 return buildList(content, ordered);
             }
 
+            case 'quote':
+            case 'pullquote': {
+                stats.quotes++;
+                return buildQuote(content);
+            }
+
             default:
                 return '';
         }
@@ -418,7 +446,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // MAIN CONVERT FUNCTION
     // ========================
     function convert(wpHtml) {
-        stats = { headings: 0, paragraphs: 0, images: 0, videos: 0, more: 0, separators: 0, lists: 0 };
+        stats = { headings: 0, paragraphs: 0, images: 0, videos: 0, more: 0, separators: 0, lists: 0, quotes: 0 };
 
         const blocks = parseWpBlocks(wpHtml);
         let isFirstHeading = true;
@@ -457,6 +485,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (stats.more > 0) parts.push(stats.more + ' more');
             if (stats.separators > 0) parts.push(stats.separators + ' separator');
             if (stats.lists > 0) parts.push(stats.lists + ' list');
+            if (stats.quotes > 0) parts.push(stats.quotes + ' quote');
 
             showStatus('Convert thành công! Blocks: ' + parts.join(', '));
         } catch (e) {
