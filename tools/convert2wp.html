@@ -1169,34 +1169,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (tag === 'hr') { blocks.push(wpSeparatorWp()); stats.separators++; continue; }
 
-            if (tag === 'blockquote') {
-                const indentWalkerWp = (el, depth) => {
-                    for (const child of Array.from(el.childNodes)) {
-                        if (child.nodeType !== 1) continue;
-                        const ct = child.tagName.toLowerCase();
-                        if (ct === 'blockquote') { indentWalkerWp(child, depth + 1); continue; }
-                        const px = depth * 40;
-                        if (/^h[1-6]$/.test(ct)) {
-                            const inner = processInlineWp(child);
-                            if (inner.trim()) {
-                                blocks.push(wpHeadingWp(inner, Math.max(2, parseInt(ct[1])), getWpAlign(child)));
-                                stats.headings++;
-                            }
-                            continue;
-                        }
-                        if (ct === 'p') {
-                            const inner = processInlineWp(child);
-                            if (inner.trim()) {
-                                blocks.push(wpParagraphWp(inner, getWpAlign(child), px > 0 ? px + 'px' : getPaddingLeft(child)));
-                                stats.paragraphs++;
-                            }
-                            continue;
-                        }
-                    }
-                };
-                indentWalkerWp(node, 1);
-                continue;
-            }
+            if (tag === 'blockquote') { blocks.push(wpQuoteWp(node)); stats.paragraphs++; continue; }
 
             if (tag === 'br') continue;
 
