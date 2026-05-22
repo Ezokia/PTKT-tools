@@ -665,6 +665,37 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (innerBlocks.length > 0) blocks.push(...innerBlocks);
                 i++; continue;
             }
+            if (tag === 'blockquote') {
+                const quoteBlocks = [];
+                // Flatten all nested blockquotes — walk their descendant headings and paragraphs in DOM order
+                const quoteWalker = (el) => {
+                    for (const child of Array.from(el.childNodes)) {
+                        if (child.nodeType !== 1) continue;
+                        const ct = child.tagName.toLowerCase();
+                        if (ct === 'blockquote') { quoteWalker(child); continue; }
+                        if (/^h[1-6]$/.test(ct)) {
+                            const inner = cleanInnerHtml(child);
+                            if (inner.trim()) {
+                                const level = Math.max(2, parseInt(ct[1]));
+                                quoteBlocks.push(wpHeading(inner, level, getTextAlign(child), ''));
+                                stats.headings++;
+                            }
+                            continue;
+                        }
+                        if (ct === 'p') {
+                            const block = processBloggerParagraph(child);
+                            if (block) quoteBlocks.push(block);
+                            continue;
+                        }
+                    }
+                };
+                quoteWalker(node);
+                if (quoteBlocks.length > 0) {
+                    blocks.push(`<!-- wp:quote -->\n<blockquote class="wp-block-quote">${quoteBlocks.join('\n')}</blockquote>\n<!-- /wp:quote -->`);
+                    stats.paragraphs++;
+                }
+                i++; continue;
+            }
             if (tag === 'p') {
                 const block = processBloggerParagraph(node);
                 if (block) blocks.push(block);
