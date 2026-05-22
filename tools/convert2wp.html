@@ -389,34 +389,39 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function wpParagraph(innerHtml, textAlign, paddingLeft, fontSize) {
+        let styleObj = {};
+        if (textAlign && textAlign !== 'left') styleObj.textAlign = textAlign;
         let jsonParts = [];
-        if (textAlign && textAlign !== 'left') {
-            jsonParts.push(`"style":{"typography":{"textAlign":"${textAlign}"}}`);
-        }
-        if (fontSize) {
-            jsonParts.push(`"fontSize":"${fontSize}"`);
-        }
+        if (paddingLeft) jsonParts.push(`"style":{"spacing":{"padding":{"left":"${paddingLeft}"}}}`);
+        else if (textAlign && textAlign !== 'left') jsonParts.push(`"style":{"typography":{"textAlign":"${textAlign}"}}`);
+        if (fontSize) jsonParts.push(`"fontSize":"${fontSize}"`);
         let attrStr = jsonParts.length > 0 ? ' {' + jsonParts.join(',') + '}' : '';
         let classList = [];
         if (textAlign && textAlign !== 'left') classList.push('has-text-align-' + textAlign);
         if (fontSize) classList.push('has-' + fontSize + '-font-size');
         let classStr = classList.length > 0 ? ' class="' + classList.join(' ') + '"' : '';
-        return `<!-- wp:paragraph${attrStr} -->\n<p${classStr}>${innerHtml}</p>\n<!-- /wp:paragraph -->`;
+        const styleAttr = paddingLeft ? ` style="padding-left:${paddingLeft}"` : '';
+        return `<!-- wp:paragraph${attrStr} -->\n<p${classStr}${styleAttr}>${innerHtml}</p>\n<!-- /wp:paragraph -->`;
     }
 
-    function wpHeading(innerHtml, level, textAlign, fontSize) {
+    function wpHeading(innerHtml, level, textAlign, fontSize, paddingLeft) {
         let jsonParts = [];
         if (level !== 2) jsonParts.push(`"level":${level}`);
-        let styleParts = [];
-        if (textAlign && textAlign !== 'left') styleParts.push(`"textAlign":"${textAlign}"`);
-        if (fontSize) styleParts.push(`"fontSize":"${fontSize}"`);
-        if (styleParts.length > 0) jsonParts.push(`"style":{"typography":{${styleParts.join(',')}}}`);
+        let typoParts = [];
+        if (textAlign && textAlign !== 'left') typoParts.push(`"textAlign":"${textAlign}"`);
+        if (fontSize) typoParts.push(`"fontSize":"${fontSize}"`);
+        if (paddingLeft) {
+            jsonParts.push(`"style":{"spacing":{"padding":{"left":"${paddingLeft}"}}}`);
+        } else if (typoParts.length > 0) {
+            jsonParts.push(`"style":{"typography":{${typoParts.join(',')}}}`);
+        }
         let attrStr = jsonParts.length > 0 ? ' {' + jsonParts.join(',') + '}' : '';
         let classList = ['wp-block-heading'];
         if (textAlign && textAlign !== 'left') classList.push('has-text-align-' + textAlign);
         let classStr = ' class="' + classList.join(' ') + '"';
         let styles = [];
         if (fontSize) styles.push('font-size:' + fontSize);
+        if (paddingLeft) styles.push('padding-left:' + paddingLeft);
         let styleStr = styles.length > 0 ? ' style="' + styles.join(';') + '"' : '';
         return `<!-- wp:heading${attrStr} -->\n<h${level}${classStr}${styleStr}>${innerHtml}</h${level}>\n<!-- /wp:heading -->`;
     }
@@ -667,29 +672,37 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             if (tag === 'blockquote') {
                 const quoteBlocks = [];
-                // Flatten all nested blockquotes — walk their descendant headings and paragraphs in DOM order
-                const quoteWalker = (el) => {
+                // Each <blockquote> in Blogger adds 40px left margin.
+                // depth=0 is the outer container (the node itself); its direct children
+                // that are also <blockquote> are depth=1 (40px), and so on.
+                const quoteWalker = (el, depth) => {
                     for (const child of Array.from(el.childNodes)) {
                         if (child.nodeType !== 1) continue;
                         const ct = child.tagName.toLowerCase();
-                        if (ct === 'blockquote') { quoteWalker(child); continue; }
+                        if (ct === 'blockquote') { quoteWalker(child, depth + 1); continue; }
+                        const extraPx = depth * 40;
                         if (/^h[1-6]$/.test(ct)) {
                             const inner = cleanInnerHtml(child);
                             if (inner.trim()) {
                                 const level = Math.max(2, parseInt(ct[1]));
-                                quoteBlocks.push(wpHeading(inner, level, getTextAlign(child), ''));
+                                // wpHeading doesn't support paddingLeft natively — wrap in a Group block if needed,
+                                // but for simplicity emit as paragraph with bold styling preserved.
+                                quoteBlocks.push(wpHeading(inner, level, getTextAlign(child), '', extraPx > 0 ? extraPx + 'px' : ''));
                                 stats.headings++;
                             }
                             continue;
                         }
                         if (ct === 'p') {
-                            const block = processBloggerParagraph(child);
+                            const basePadding = getPaddingLeft(child);
+                            const basePx = basePadding ? parseInt(basePadding) || 0 : 0;
+                            const totalPx = basePx + extraPx;
+                            const block = processBloggerParagraph(child, totalPx > 0 ? totalPx + 'px' : '');
                             if (block) quoteBlocks.push(block);
                             continue;
                         }
                     }
                 };
-                quoteWalker(node);
+                quoteWalker(node, 0);
                 if (quoteBlocks.length > 0) {
                     blocks.push(`<!-- wp:quote -->\n<blockquote class="wp-block-quote">${quoteBlocks.join('\n')}</blockquote>\n<!-- /wp:quote -->`);
                     stats.paragraphs++;
@@ -730,7 +743,7 @@ document.addEventListener('DOMContentLoaded', function() {
         return blocks.join('\n\n');
     }
 
-    function processBloggerParagraph(node) {
+    function processBloggerParagraph(node, paddingOverride) {
         // If paragraph contains a tr-caption-container table (Blogger image), extract as image block
         const captionTable = node.querySelector('table.tr-caption-container');
         if (captionTable) {
@@ -760,12 +773,12 @@ document.addEventListener('DOMContentLoaded', function() {
             return wpImage(src, alt, '', 'center', '', '');
         }
         const textAlign = getTextAlign(node);
-        const paddingLeft = getPaddingLeft(node);
+        const paddingLeft = paddingOverride !== undefined ? paddingOverride : getPaddingLeft(node);
         if (isBoldOnlyParagraph(node)) {
             if (hasFontSizeInBold(node)) {
                 let innerHtml = cleanInnerHtml(node);
                 stats.headings++;
-                return wpHeading(innerHtml, 2, '', '');
+                return wpHeading(innerHtml, 2, '', '', paddingLeft || '');
             } else {
                 let innerHtml = cleanInnerHtml(node);
                 const plainText = node.textContent.trim();
