@@ -157,7 +157,7 @@
             <li>Text wrap <code>&lt;span style="color: #393939"&gt;</code> (inner color override)</li>
             <li>Drop inline font-size/font-family, giữ color</li>
             <li>text-align justify/center → WP block attrs + class</li>
-            <li>padding-left → treat as justify</li>
+            <li>padding-left → preserved as inline style on &lt;p&gt;</li>
             <li>Append citation block cuối bài</li>
         </ul>
     </details>
@@ -953,12 +953,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const alignAttr = el.getAttribute('align') || '';
         const m = style.match(/text-align:\s*(justify|center|right|left)/i);
         if (m) return m[1].toLowerCase();
-        if (/padding-left:/i.test(style) || /margin-left:/i.test(style)) return 'justify';
         if (alignAttr) return alignAttr.toLowerCase();
         return '';
     }
 
-    function wpParagraphWp(innerHtml, align) {
+    function wpParagraphWp(innerHtml, align, paddingLeft) {
         let jsonParts = [];
         let classList = [];
         // Auto-justify normal paragraphs in PTKT style (default behavior for body text)
@@ -973,7 +972,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         const attrStr = jsonParts.length > 0 ? ' {' + jsonParts.join(',') + '}' : '';
         const classStr = classList.length > 0 ? ' class="' + classList.join(' ') + '"' : '';
-        return `<!-- wp:paragraph${attrStr} -->\n<p${classStr}>${wrapBody(innerHtml)}</p>\n<!-- /wp:paragraph -->`;
+        const styleStr = paddingLeft ? ` style="padding-left:${paddingLeft}"` : '';
+        return `<!-- wp:paragraph${attrStr} -->\n<p${classStr}${styleStr}>${wrapBody(innerHtml)}</p>\n<!-- /wp:paragraph -->`;
     }
 
     function wpHeadingWp(innerHtml, level, align) {
@@ -1026,11 +1026,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const innerBlocks = [];
         node.querySelectorAll(':scope > p').forEach(p => {
             const inner = processInlineWp(p);
-            if (inner.trim()) innerBlocks.push(wpParagraphWp(inner, getWpAlign(p)));
+            if (inner.trim()) innerBlocks.push(wpParagraphWp(inner, getWpAlign(p), getPaddingLeft(p)));
         });
         if (innerBlocks.length === 0) {
             const inner = processInlineWp(node);
-            if (inner.trim()) innerBlocks.push(wpParagraphWp(inner, ''));
+            if (inner.trim()) innerBlocks.push(wpParagraphWp(inner, '', getPaddingLeft(node)));
         }
         return `<!-- wp:quote -->\n<blockquote class="wp-block-quote">${innerBlocks.join('\n')}</blockquote>\n<!-- /wp:quote -->`;
     }
@@ -1047,7 +1047,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (imgs.length > 0) {
             imgs.forEach(img => {
                 const src = img.getAttribute('src') || '';
-                blocks.push(wpImagePlaceholder());
                 if (src) blocks.push(wpUrlNote(src));
                 stats.images++;
             });
@@ -1057,7 +1056,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 clone.querySelectorAll('img').forEach(i => i.remove());
                 const inner = processInlineWp(clone);
                 if (inner.trim() && inner.replace(/&nbsp;|\u00a0|\s/g, '').length > 0) {
-                    blocks.push(wpParagraphWp(inner, getWpAlign(node)));
+                    blocks.push(wpParagraphWp(inner, getWpAlign(node), getPaddingLeft(node)));
                     stats.paragraphs++;
                 }
             }
@@ -1067,7 +1066,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!text) return;
         const inner = processInlineWp(node);
         if (!inner.trim()) return;
-        blocks.push(wpParagraphWp(inner, getWpAlign(node)));
+        blocks.push(wpParagraphWp(inner, getWpAlign(node), getPaddingLeft(node)));
         stats.paragraphs++;
     }
 
@@ -1076,7 +1075,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const figcaption = node.querySelector('figcaption');
         if (img) {
             const src = img.getAttribute('src') || '';
-            blocks.push(wpImagePlaceholder());
             if (src) blocks.push(wpUrlNote(src));
             stats.images++;
         }
@@ -1113,7 +1111,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (tag === 'img') {
                 const src = node.getAttribute('src') || '';
-                blocks.push(wpImagePlaceholder());
                 if (src) blocks.push(wpUrlNote(src));
                 stats.images++;
                 continue;
@@ -1139,7 +1136,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Unknown inline-ish element at top level → treat as paragraph
             const inner = processInlineWp(node);
             if (inner.trim()) {
-                blocks.push(wpParagraphWp(inner, getWpAlign(node)));
+                blocks.push(wpParagraphWp(inner, getWpAlign(node), getPaddingLeft(node)));
                 stats.paragraphs++;
             }
         }
