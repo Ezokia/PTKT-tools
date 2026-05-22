@@ -667,53 +667,38 @@ document.addEventListener('DOMContentLoaded', function() {
                 i++; continue;
             }
             if (tag === 'blockquote') {
-                const hasNestedBlockquote = !!node.querySelector(':scope > blockquote');
-
-                if (hasNestedBlockquote) {
-                    // Case 1: nested <blockquote> structure — Blogger indented content.
-                    // Each blockquote level = 40px padding-left. Emit as plain <p>/<h*> blocks, no wp:quote wrapper.
-                    const paddedBlocks = [];
-                    const indentWalker = (el, depth) => {
-                        for (const child of Array.from(el.childNodes)) {
-                            if (child.nodeType !== 1) continue;
-                            const ct = child.tagName.toLowerCase();
-                            if (ct === 'blockquote') { indentWalker(child, depth + 1); continue; }
-                            const px = depth * 40;
-                            if (/^h[1-6]$/.test(ct)) {
-                                const inner = cleanInnerHtml(child);
-                                if (inner.trim()) {
-                                    const level = Math.max(2, parseInt(ct[1]));
-                                    paddedBlocks.push(wpHeading(inner, level, getTextAlign(child), ''));
-                                    stats.headings++;
-                                }
-                                continue;
+                // Top-level <blockquote> in Blogger = indented content, each nesting level adds 40px padding-left.
+                // Always emit as plain <p>/<h*> blocks — never as wp:quote.
+                // (Inline quotes inside <p> flow are a different structure and not handled here.)
+                const indentWalker = (el, depth) => {
+                    for (const child of Array.from(el.childNodes)) {
+                        if (child.nodeType !== 1) continue;
+                        const ct = child.tagName.toLowerCase();
+                        if (ct === 'blockquote') { indentWalker(child, depth + 1); continue; }
+                        const px = depth * 40;
+                        if (/^h[1-6]$/.test(ct)) {
+                            const inner = cleanInnerHtml(child);
+                            if (inner.trim()) {
+                                const level = Math.max(2, parseInt(ct[1]));
+                                blocks.push(wpHeading(inner, level, getTextAlign(child), ''));
+                                stats.headings++;
                             }
-                            if (ct === 'p') {
-                                const origStyle = child.getAttribute('style') || '';
-                                if (px > 0) {
-                                    const stripped = origStyle.replace(/padding-left\s*:[^;]*(;|$)/gi, '').replace(/margin-left\s*:[^;]*(;|$)/gi, '').trim().replace(/;$/, '');
-                                    child.setAttribute('style', (stripped ? stripped + ';' : '') + `padding-left:${px}px`);
-                                }
-                                const block = processBloggerParagraph(child);
-                                if (px > 0) child.setAttribute('style', origStyle);
-                                if (block) paddedBlocks.push(block);
-                                continue;
-                            }
+                            continue;
                         }
-                    };
-                    indentWalker(node, 0);
-                    if (paddedBlocks.length > 0) blocks.push(...paddedBlocks);
-
-                } else {
-                    // Case 2: inline blockquote — direct text/spans, no nested blockquotes.
-                    // Emit as wp:quote block.
-                    const inner = cleanInnerHtml(node);
-                    if (inner.trim()) {
-                        const pBlock = wpParagraph(inner, getTextAlign(node) || 'justify', '', '');
-                        blocks.push(`<!-- wp:quote -->\n<blockquote class="wp-block-quote">${pBlock}</blockquote>\n<!-- /wp:quote -->`);
-                        stats.paragraphs++;
+                        if (ct === 'p') {
+                            const origStyle = child.getAttribute('style') || '';
+                            if (px > 0) {
+                                const stripped = origStyle.replace(/padding-left\s*:[^;]*(;|$)/gi, '').replace(/margin-left\s*:[^;]*(;|$)/gi, '').trim().replace(/;$/, '');
+                                child.setAttribute('style', (stripped ? stripped + ';' : '') + `padding-left:${px}px`);
+                            }
+                            const block = processBloggerParagraph(child);
+                            if (px > 0) child.setAttribute('style', origStyle);
+                            if (block) blocks.push(block);
+                            continue;
+                        }
                     }
-                }
+                };
+                indentWalker(node, 1);
                 i++; continue;
             }
             if (tag === 'p') {
