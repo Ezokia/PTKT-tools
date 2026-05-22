@@ -1277,6 +1277,15 @@ document.addEventListener('DOMContentLoaded', function() {
         img.src = url;
     }
 
+    function sanitizeInput(rawHtml) {
+        // Strip HTML comments (Google Docs/AI Overviews markers like <!--TgQPHd|[]-->, MS Office <!--[if ...]-->, etc.)
+        let cleaned = rawHtml.replace(/<!--[\s\S]*?-->/g, '');
+        // Strip Google Docs copy-service noise attributes that leak into pasted HTML
+        cleaned = cleaned.replace(/\s+data-(?:sfc-root|sfc-cb|processed|copy-service-computed-style|subtree)="[^"]*"/g, '');
+        cleaned = cleaned.replace(/\s+data-(?:sfc-root|sfc-cb|processed|copy-service-computed-style|subtree)='[^']*'/g, '');
+        return cleaned;
+    }
+
     transformBtn.addEventListener('click', function() {
         if (!inputText.value.trim()) {
             showStatus('Paste HTML vào input trước.');
@@ -1284,11 +1293,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         try {
             const source = getSource();
+            const cleanInput = sanitizeInput(inputText.value);
 
-            const dupes = source === 'wp' ? checkDuplicateFootnoteNames(inputText.value) : [];
-            const imgUrls = extractImages(inputText.value);
+            const dupes = source === 'wp' ? checkDuplicateFootnoteNames(cleanInput) : [];
+            const imgUrls = extractImages(cleanInput);
 
-            const result = source === 'wp' ? convertWordPress(inputText.value) : convertBlogger(inputText.value);
+            const result = source === 'wp' ? convertWordPress(cleanInput) : convertBlogger(cleanInput);
             outputText.value = result;
             copyBtn.disabled = false;
             displayExtractedImages(imgUrls);
