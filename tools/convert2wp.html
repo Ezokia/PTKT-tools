@@ -389,12 +389,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function wpParagraph(innerHtml, textAlign, paddingLeft, fontSize) {
-        let styleObj = {};
-        if (textAlign && textAlign !== 'left') styleObj.textAlign = textAlign;
         let jsonParts = [];
-        if (paddingLeft) jsonParts.push(`"style":{"spacing":{"padding":{"left":"${paddingLeft}"}}}`);
-        else if (textAlign && textAlign !== 'left') jsonParts.push(`"style":{"typography":{"textAlign":"${textAlign}"}}`);
-        if (fontSize) jsonParts.push(`"fontSize":"${fontSize}"`);
+        if (textAlign && textAlign !== 'left') {
+            jsonParts.push(`"style":{"typography":{"textAlign":"${textAlign}"}}`);
+        }
+        if (fontSize) {
+            jsonParts.push(`"fontSize":"${fontSize}"`);
+        }
         let attrStr = jsonParts.length > 0 ? ' {' + jsonParts.join(',') + '}' : '';
         let classList = [];
         if (textAlign && textAlign !== 'left') classList.push('has-text-align-' + textAlign);
@@ -404,24 +405,19 @@ document.addEventListener('DOMContentLoaded', function() {
         return `<!-- wp:paragraph${attrStr} -->\n<p${classStr}${styleAttr}>${innerHtml}</p>\n<!-- /wp:paragraph -->`;
     }
 
-    function wpHeading(innerHtml, level, textAlign, fontSize, paddingLeft) {
+    function wpHeading(innerHtml, level, textAlign, fontSize) {
         let jsonParts = [];
         if (level !== 2) jsonParts.push(`"level":${level}`);
-        let typoParts = [];
-        if (textAlign && textAlign !== 'left') typoParts.push(`"textAlign":"${textAlign}"`);
-        if (fontSize) typoParts.push(`"fontSize":"${fontSize}"`);
-        if (paddingLeft) {
-            jsonParts.push(`"style":{"spacing":{"padding":{"left":"${paddingLeft}"}}}`);
-        } else if (typoParts.length > 0) {
-            jsonParts.push(`"style":{"typography":{${typoParts.join(',')}}}`);
-        }
+        let styleParts = [];
+        if (textAlign && textAlign !== 'left') styleParts.push(`"textAlign":"${textAlign}"`);
+        if (fontSize) styleParts.push(`"fontSize":"${fontSize}"`);
+        if (styleParts.length > 0) jsonParts.push(`"style":{"typography":{${styleParts.join(',')}}}`);
         let attrStr = jsonParts.length > 0 ? ' {' + jsonParts.join(',') + '}' : '';
         let classList = ['wp-block-heading'];
         if (textAlign && textAlign !== 'left') classList.push('has-text-align-' + textAlign);
         let classStr = ' class="' + classList.join(' ') + '"';
         let styles = [];
         if (fontSize) styles.push('font-size:' + fontSize);
-        if (paddingLeft) styles.push('padding-left:' + paddingLeft);
         let styleStr = styles.length > 0 ? ' style="' + styles.join(';') + '"' : '';
         return `<!-- wp:heading${attrStr} -->\n<h${level}${classStr}${styleStr}>${innerHtml}</h${level}>\n<!-- /wp:heading -->`;
     }
@@ -673,8 +669,8 @@ document.addEventListener('DOMContentLoaded', function() {
             if (tag === 'blockquote') {
                 const quoteBlocks = [];
                 // Each <blockquote> in Blogger adds 40px left margin.
-                // depth=0 is the outer container (the node itself); its direct children
-                // that are also <blockquote> are depth=1 (40px), and so on.
+                // depth=0 is the outer container; direct <blockquote> children are depth=1 (40px), etc.
+                // We inject padding by temporarily patching each <p>/<h*> node's style before processing.
                 const quoteWalker = (el, depth) => {
                     for (const child of Array.from(el.childNodes)) {
                         if (child.nodeType !== 1) continue;
@@ -685,18 +681,20 @@ document.addEventListener('DOMContentLoaded', function() {
                             const inner = cleanInnerHtml(child);
                             if (inner.trim()) {
                                 const level = Math.max(2, parseInt(ct[1]));
-                                // wpHeading doesn't support paddingLeft natively — wrap in a Group block if needed,
-                                // but for simplicity emit as paragraph with bold styling preserved.
-                                quoteBlocks.push(wpHeading(inner, level, getTextAlign(child), '', extraPx > 0 ? extraPx + 'px' : ''));
+                                quoteBlocks.push(wpHeading(inner, level, getTextAlign(child), ''));
                                 stats.headings++;
                             }
                             continue;
                         }
                         if (ct === 'p') {
-                            const basePadding = getPaddingLeft(child);
-                            const basePx = basePadding ? parseInt(basePadding) || 0 : 0;
-                            const totalPx = basePx + extraPx;
-                            const block = processBloggerParagraph(child, totalPx > 0 ? totalPx + 'px' : '');
+                            // Patch padding-left on the node so processBloggerParagraph picks it up via getPaddingLeft
+                            const origStyle = child.getAttribute('style') || '';
+                            if (extraPx > 0) {
+                                const cleaned = origStyle.replace(/padding-left\s*:[^;]*(;|$)/gi, '').replace(/margin-left\s*:[^;]*(;|$)/gi, '').trim().replace(/;$/, '');
+                                child.setAttribute('style', (cleaned ? cleaned + ';' : '') + `padding-left:${extraPx}px`);
+                            }
+                            const block = processBloggerParagraph(child);
+                            if (extraPx > 0) child.setAttribute('style', origStyle); // restore
                             if (block) quoteBlocks.push(block);
                             continue;
                         }
@@ -743,7 +741,7 @@ document.addEventListener('DOMContentLoaded', function() {
         return blocks.join('\n\n');
     }
 
-    function processBloggerParagraph(node, paddingOverride) {
+    function processBloggerParagraph(node) {
         // If paragraph contains a tr-caption-container table (Blogger image), extract as image block
         const captionTable = node.querySelector('table.tr-caption-container');
         if (captionTable) {
@@ -773,12 +771,12 @@ document.addEventListener('DOMContentLoaded', function() {
             return wpImage(src, alt, '', 'center', '', '');
         }
         const textAlign = getTextAlign(node);
-        const paddingLeft = paddingOverride !== undefined ? paddingOverride : getPaddingLeft(node);
+        const paddingLeft = getPaddingLeft(node);
         if (isBoldOnlyParagraph(node)) {
             if (hasFontSizeInBold(node)) {
                 let innerHtml = cleanInnerHtml(node);
                 stats.headings++;
-                return wpHeading(innerHtml, 2, '', '', paddingLeft || '');
+                return wpHeading(innerHtml, 2, '', '');
             } else {
                 let innerHtml = cleanInnerHtml(node);
                 const plainText = node.textContent.trim();
